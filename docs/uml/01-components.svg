@@ -1,0 +1,93 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg aria-labelledby="title description" xmlns="http://www.w3.org/2000/svg" width="1440" height="955" viewBox="0 0 1440 955" role="img">
+  <style>text { font-family: 'Helvetica Neue', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; }</style>
+  <title id="title">谁负责路由，谁有权执行</title>
+  <desc id="description">一个仓库绑定一个常驻后台。终端可以退出，Engine、测试监听与 PR 轮询继续运行。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="#526d91" stroke-width="1.4" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1440" height="955" rx="0" fill="#ffffff" stroke="none" stroke-width="1.6" data-graph-role="background" />
+  <text x="48" y="43" font-size="17" font-weight="650" text-anchor="start" fill="#2259b0">UML   /   组件图</text>
+  <text x="1392" y="43" font-size="17" font-weight="500" text-anchor="end" fill="#46566c">Codex Orchestration   /   Spec v0.46</text>
+  <text x="48" y="96" font-size="39" font-weight="650" text-anchor="start" fill="#172334">谁负责路由，谁有权执行</text>
+  <text x="48" y="136" font-size="21" font-weight="400" text-anchor="start" fill="#46566c">一个仓库绑定一个常驻后台。终端可以退出，Engine、测试监听与 PR 轮询继续运行。</text>
+  <path d="M 48 895 L 1392 895" stroke="#b4c3d5" stroke-width="1" fill="none" stroke-linejoin="round" />
+  <text x="48" y="930" font-size="16" font-weight="500" text-anchor="start" fill="#46566c">规格依据   ·   DR-002   /   IR-002、005、007、009、010、011   /   SEC-003、004、012</text>
+  <rect x="45" y="311" width="1350" height="362" rx="10" fill="none" stroke="#b4c3d5" stroke-width="1.6" data-graph-role="container" stroke-dasharray="7 5" />
+  <text x="1378" y="339" font-size="17" font-weight="650" text-anchor="end" fill="#2259b0">本机宿主   ·   常驻 Runtime（Node.js）</text>
+  <rect x="69" y="170" width="308" height="88" rx="8" fill="#ffffff" stroke="#b4c3d5" stroke-width="1.6" />
+  <rect x="339" y="183" width="20" height="15" rx="1" fill="none" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="336" y="185" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="336" y="192" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <text x="86" y="200" font-size="22" font-weight="650" text-anchor="start" fill="#172334">终端入口</text>
+  <text x="86" y="228" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">发起、暂停、查询与接收答复</text>
+  <rect x="555" y="171" width="325" height="88" rx="8" fill="#f3effc" stroke="#b4c3d5" stroke-width="1.6" />
+  <rect x="842" y="184" width="20" height="15" rx="1" fill="none" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="839" y="186" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="839" y="193" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <text x="572" y="201" font-size="22" font-weight="650" text-anchor="start" fill="#172334">Main Session</text>
+  <text x="572" y="229" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">Codex 路由会话 · 提交结构化命令</text>
+  <rect x="70" y="380" width="307" height="92" rx="8" fill="#ffffff" stroke="#b4c3d5" stroke-width="1.6" />
+  <rect x="339" y="393" width="20" height="15" rx="1" fill="none" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="336" y="395" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="336" y="402" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <text x="87" y="410" font-size="22" font-weight="650" text-anchor="start" fill="#172334">Source / Channel</text>
+  <text x="87" y="438" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">接收 Trigger，投递 Outbox 回执</text>
+  <rect x="542" y="380" width="350" height="92" rx="8" fill="#eaf2ff" stroke="#b4c3d5" stroke-width="1.6" />
+  <rect x="854" y="393" width="20" height="15" rx="1" fill="none" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="851" y="395" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="851" y="402" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <text x="559" y="410" font-size="22" font-weight="650" text-anchor="start" fill="#172334">Engine</text>
+  <text x="559" y="438" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">校验 Gate、命令、授权与状态</text>
+  <rect x="1060" y="380" width="307" height="92" rx="8" fill="#eaf6f0" stroke="#b4c3d5" stroke-width="1.6" />
+  <rect x="1329" y="393" width="20" height="15" rx="1" fill="none" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="1326" y="395" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="1326" y="402" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <text x="1077" y="410" font-size="22" font-weight="650" text-anchor="start" fill="#172334">Store / SQLite</text>
+  <text x="1077" y="438" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">领域记录、Effects 与 Outbox</text>
+  <rect x="552" y="535" width="330" height="88" rx="8" fill="#ffffff" stroke="#b4c3d5" stroke-width="1.6" />
+  <rect x="844" y="548" width="20" height="15" rx="1" fill="none" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="841" y="550" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="841" y="557" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <text x="569" y="565" font-size="22" font-weight="650" text-anchor="start" fill="#172334">Executor</text>
+  <text x="569" y="593" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">槽位、运行绑定、测试完成事件</text>
+  <rect x="1060" y="535" width="307" height="88" rx="8" fill="#ffffff" stroke="#b4c3d5" stroke-width="1.6" />
+  <rect x="1329" y="548" width="20" height="15" rx="1" fill="none" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="1326" y="550" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="1326" y="557" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <text x="1077" y="565" font-size="22" font-weight="650" text-anchor="start" fill="#172334">Git / gh 适配器</text>
+  <text x="1077" y="593" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">专用账号 · 每步写入前复核授权</text>
+  <rect x="492" y="739" width="458" height="98" rx="8" fill="#f3effc" stroke="#b4c3d5" stroke-width="1.6" />
+  <rect x="912" y="752" width="20" height="15" rx="1" fill="none" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="909" y="754" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="909" y="761" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <text x="509" y="769" font-size="22" font-weight="650" text-anchor="start" fill="#172334">每 Ticket 一个 Linux 容器</text>
+  <text x="509" y="797" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">Worker App Server 持有受保护的会话身份</text>
+  <text x="509" y="821" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">命令与测试只能访问获准的代码和网络</text>
+  <rect x="1060" y="739" width="307" height="98" rx="8" fill="#eaf6f0" stroke="#b4c3d5" stroke-width="1.6" />
+  <rect x="1329" y="752" width="20" height="15" rx="1" fill="none" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="1326" y="754" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <rect x="1326" y="761" width="7" height="4" rx="0" fill="#ffffff" stroke="#526d91" stroke-width="1.6" data-graph-role="decoration" />
+  <text x="1077" y="769" font-size="22" font-weight="650" text-anchor="start" fill="#172334">GitHub 仓库</text>
+  <text x="1077" y="797" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">推送、创建或更新 PR</text>
+  <text x="1077" y="821" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">按绑定 PR 轮询关闭 / 合并事实</text>
+  <path d="M 222 259 L 222 380" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="222" y="299" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">回环 HTTP</text>
+  <path d="M 377 424 L 542 424" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="456" y="411" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">输入 / 控制</text>
+  <path d="M 717 380 L 717 259" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="717" y="300" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">Assessor 驱动</text>
+  <path d="M 892 424 L 1060 424" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="978" y="411" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">事务提交</text>
+  <path d="M 717 472 L 717 535" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="717" y="512" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">已提交的派工 Effect</text>
+  <path d="M 859 472 L 859 501 L 1214 501 L 1214 535" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="1060" y="494" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">受权交付 / 查询</text>
+  <path d="M 717 623 L 717 739" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="717" y="699" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">App Server 协议 / 工具回调</text>
+  <path d="M 1214 623 L 1214 739" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="1214" y="699" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">Git / GitHub CLI</text>
+  <text x="62" y="876" font-size="18" font-weight="500" text-anchor="start" fill="#46566c">箭头标出调用发起方。Worker 的报告与远端操作请求经宿主回调进入 Engine；测试子进程无法取得宿主凭据。</text>
+</svg>

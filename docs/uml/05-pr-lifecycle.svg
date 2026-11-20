@@ -1,0 +1,59 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg aria-labelledby="title description" xmlns="http://www.w3.org/2000/svg" width="1440" height="996" viewBox="0 0 1440 996" role="img">
+  <style>text { font-family: 'Helvetica Neue', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; }</style>
+  <title id="title">一个 PR 何时能让 Ticket 结束</title>
+  <desc id="description">入口条件为宿主已核实并绑定 PR。Worker 的 ready、自建 PR 的关闭事实与 Ticket 的 ended 分别记录。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="#526d91" stroke-width="1.4" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1440" height="996" rx="0" fill="#ffffff" stroke="none" stroke-width="1.6" data-graph-role="background" />
+  <text x="48" y="43" font-size="17" font-weight="650" text-anchor="start" fill="#2259b0">UML   /   活动图</text>
+  <text x="1392" y="43" font-size="17" font-weight="500" text-anchor="end" fill="#46566c">Codex Orchestration   /   Spec v0.46</text>
+  <text x="48" y="96" font-size="39" font-weight="650" text-anchor="start" fill="#172334">一个 PR 何时能让 Ticket 结束</text>
+  <text x="48" y="136" font-size="21" font-weight="400" text-anchor="start" fill="#46566c">入口条件为宿主已核实并绑定 PR。Worker 的 ready、自建 PR 的关闭事实与 Ticket 的 ended 分别记录。</text>
+  <path d="M 48 936 L 1392 936" stroke="#b4c3d5" stroke-width="1" fill="none" stroke-linejoin="round" />
+  <text x="48" y="971" font-size="16" font-weight="500" text-anchor="start" fill="#46566c">规格依据   ·   FR-005、012   /   IR-007   /   AC-003、033、034   /   DEC-032</text>
+  <circle cx="700" cy="179" r="8" fill="#172334" />
+  <path d="M 700 190 L 700 212" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <rect x="442.0" y="212" width="516" height="80" rx="17" fill="#eaf2ff" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="700" y="244" font-size="21" font-weight="600" text-anchor="middle" fill="#172334">轮询开放 Ticket 已绑定的 PR</text>
+  <text x="700" y="272" font-size="17" font-weight="400" text-anchor="middle" fill="#46566c">通常每 60 秒；GitHub 要求更长等待时延后</text>
+  <path d="M 700 292 L 700 323" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <polygon points="700,323 727,343 700,363 673,343" fill="#fff5df" stroke="#526d91" stroke-width="1.8" />
+  <path d="M 727 343 L 979 343" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="854" y="330" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">[读取失败]</text>
+  <rect x="979.0" y="315" width="372" height="56" rx="17" fill="#ffffff" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="1165" y="350" font-size="21" font-weight="600" text-anchor="middle" fill="#172334">保留已知状态，稍后重试</text>
+  <path d="M 1165 315 L 1165 249 L 958 249" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <path d="M 700 363 L 700 423" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="700" y="400" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">[取得远端事实]</text>
+  <rect x="400.0" y="423" width="600" height="80" rx="17" fill="#eaf2ff" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="700" y="455" font-size="21" font-weight="600" text-anchor="middle" fill="#172334">选择参与结束判断的 PR</text>
+  <text x="700" y="483" font-size="17" font-weight="400" text-anchor="middle" fill="#46566c">有自建 PR 则仅计自建且已绑定的；否则计全部跟踪的 PR</text>
+  <path d="M 700 503 L 700 535" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <polygon points="700,535 727,555 700,575 673,555" fill="#fff5df" stroke="#526d91" stroke-width="1.8" />
+  <path d="M 673 555 L 445 555" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="553" y="542" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">[集合为空或仍有开放 PR]</text>
+  <rect x="55.0" y="527" width="390" height="56" rx="17" fill="#ffffff" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="250" y="562" font-size="21" font-weight="600" text-anchor="middle" fill="#172334">保持 open，等待后续事实</text>
+  <path d="M 250 527 L 250 252 L 442 252" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <path d="M 700 575 L 700 635" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="700" y="612" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">[集合非空且全部关闭 / 合并]</text>
+  <polygon points="700,635 727,655 700,675 673,655" fill="#fff5df" stroke="#526d91" stroke-width="1.8" />
+  <path d="M 727 655 L 952 655" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="836" y="642" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">[仍有未完成工作]</text>
+  <rect x="952.0" y="627" width="444" height="56" rx="17" fill="#ffffff" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="1174" y="662" font-size="21" font-weight="600" text-anchor="middle" fill="#172334">保存关闭事实，Ticket 保持 open</text>
+  <path d="M 1205 627 L 1205 463 L 1000 463" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="1205" y="537" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">工作收尾后重新判断</text>
+  <path d="M 700 675 L 700 786" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="700" y="762" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">[无未完成工作]</text>
+  <rect x="380.0" y="786" width="640" height="80" rx="17" fill="#eaf6f0" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="700" y="818" font-size="21" font-weight="600" text-anchor="middle" fill="#172334">Engine 结束 Ticket，幂等通知一次</text>
+  <text x="700" y="846" font-size="17" font-weight="400" text-anchor="middle" fill="#46566c">结局取实际关闭时间最晚的相关 PR 的 merged 或 closed</text>
+  <path d="M 700 866 L 700 897" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <circle cx="700" cy="910" r="12" fill="#ffffff" stroke="#172334" stroke-width="2" />
+  <circle cx="700" cy="910" r="7" fill="#172334" />
+</svg>

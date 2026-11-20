@@ -1,0 +1,94 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg aria-labelledby="title description" xmlns="http://www.w3.org/2000/svg" width="1440" height="890" viewBox="0 0 1440 890" role="img">
+  <style>text { font-family: 'Helvetica Neue', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; }</style>
+  <title id="title">同一个 Thread 怎样承载多张 Ticket</title>
+  <desc id="description">线端数字表示对象数量。图中 Thread 表示消息来源；Worker Session 绑定的是执行侧的 Codex thread ID。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="#526d91" stroke-width="1.4" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1440" height="890" rx="0" fill="#ffffff" stroke="none" stroke-width="1.6" data-graph-role="background" />
+  <text x="48" y="43" font-size="17" font-weight="650" text-anchor="start" fill="#2259b0">UML   /   领域类图</text>
+  <text x="1392" y="43" font-size="17" font-weight="500" text-anchor="end" fill="#46566c">Codex Orchestration   /   Spec v0.46</text>
+  <text x="48" y="96" font-size="39" font-weight="650" text-anchor="start" fill="#172334">同一个 Thread 怎样承载多张 Ticket</text>
+  <text x="48" y="136" font-size="21" font-weight="400" text-anchor="start" fill="#46566c">线端数字表示对象数量。图中 Thread 表示消息来源；Worker Session 绑定的是执行侧的 Codex thread ID。</text>
+  <path d="M 48 830 L 1392 830" stroke="#b4c3d5" stroke-width="1" fill="none" stroke-linejoin="round" />
+  <text x="48" y="865" font-size="16" font-weight="500" text-anchor="start" fill="#46566c">规格依据   ·   领域对象与原型落点   /   BR-003 至 BR-006   /   DR-001、002、007   /   FR-013</text>
+  <rect x="64" y="177" width="350" height="106" rx="8" fill="#ffffff" stroke="#b4c3d5" stroke-width="1.6" />
+  <path d="M 64 220 L 414 220" stroke="#b4c3d5" stroke-width="1" fill="none" stroke-linejoin="round" />
+  <text x="81" y="207" font-size="22" font-weight="650" text-anchor="start" fill="#172334">Trigger</text>
+  <text x="81" y="235" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">不可变原文、actor、来源 Thread</text>
+  <text x="81" y="259" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">Disposition 记录投递、交回与去向</text>
+  <rect x="546" y="177" width="350" height="106" rx="8" fill="#eaf2ff" stroke="#b4c3d5" stroke-width="1.6" />
+  <path d="M 546 220 L 896 220" stroke="#b4c3d5" stroke-width="1" fill="none" stroke-linejoin="round" />
+  <text x="563" y="207" font-size="22" font-weight="650" text-anchor="start" fill="#172334">Thread</text>
+  <text x="563" y="235" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">来源会话、待评估批次</text>
+  <text x="563" y="259" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">同一时刻最多一个活跃 Eval</text>
+  <rect x="1028" y="177" width="350" height="106" rx="8" fill="#ffffff" stroke="#b4c3d5" stroke-width="1.6" />
+  <path d="M 1028 220 L 1378 220" stroke="#b4c3d5" stroke-width="1" fill="none" stroke-linejoin="round" />
+  <text x="1045" y="207" font-size="22" font-weight="650" text-anchor="start" fill="#172334">Eval</text>
+  <text x="1045" y="235" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">Trigger 批次、当前 Policy 版本</text>
+  <text x="1045" y="259" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">Candidate 携带路由所需的上下文</text>
+  <rect x="64" y="395" width="350" height="106" rx="8" fill="#f3effc" stroke="#b4c3d5" stroke-width="1.6" />
+  <path d="M 64 438 L 414 438" stroke="#b4c3d5" stroke-width="1" fill="none" stroke-linejoin="round" />
+  <text x="81" y="425" font-size="22" font-weight="650" text-anchor="start" fill="#172334">Worker Session</text>
+  <text x="81" y="453" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">Ticket 专用的受管 Codex 会话</text>
+  <text x="81" y="477" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">可跨 Assignment 续接原 thread</text>
+  <rect x="546" y="395" width="350" height="106" rx="8" fill="#eaf2ff" stroke="#b4c3d5" stroke-width="1.6" />
+  <path d="M 546 438 L 896 438" stroke="#b4c3d5" stroke-width="1" fill="none" stroke-linejoin="round" />
+  <text x="563" y="425" font-size="22" font-weight="650" text-anchor="start" fill="#172334">Ticket</text>
+  <text x="563" y="453" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">open / ended、来源、交付记录</text>
+  <text x="563" y="477" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">保留 Inputs、Reports、Attention</text>
+  <rect x="1028" y="395" width="350" height="106" rx="8" fill="#ffffff" stroke="#b4c3d5" stroke-width="1.6" />
+  <path d="M 1028 438 L 1378 438" stroke="#b4c3d5" stroke-width="1" fill="none" stroke-linejoin="round" />
+  <text x="1045" y="425" font-size="22" font-weight="650" text-anchor="start" fill="#172334">Decision</text>
+  <text x="1045" y="453" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">记录 Eval 结果、理由及版本</text>
+  <text x="1045" y="477" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">accept 生成 Ticket 并记录 Mandate</text>
+  <rect x="546" y="615" width="350" height="106" rx="8" fill="#ffffff" stroke="#b4c3d5" stroke-width="1.6" />
+  <path d="M 546 658 L 896 658" stroke="#b4c3d5" stroke-width="1" fill="none" stroke-linejoin="round" />
+  <text x="563" y="645" font-size="22" font-weight="650" text-anchor="start" fill="#172334">Assignment</text>
+  <text x="563" y="673" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">pending / running / ended</text>
+  <text x="563" y="697" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">同一 Ticket 可有多次执行委派</text>
+  <rect x="1028" y="615" width="350" height="106" rx="8" fill="#eaf6f0" stroke="#b4c3d5" stroke-width="1.6" />
+  <path d="M 1028 658 L 1378 658" stroke="#b4c3d5" stroke-width="1" fill="none" stroke-linejoin="round" />
+  <text x="1045" y="645" font-size="22" font-weight="650" text-anchor="start" fill="#172334">Mandate</text>
+  <text x="1045" y="673" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">不可变的 actor、scope、strength</text>
+  <text x="1045" y="697" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">policyVersion 与准入依据 basis</text>
+  <path d="M 414 231 L 546 231" stroke="#526d91" stroke-width="2" fill="none" stroke-linejoin="round" />
+  <text x="422" y="255" font-size="15" font-weight="400" text-anchor="start" fill="#46566c">0..*</text>
+  <text x="538" y="255" font-size="15" font-weight="400" text-anchor="end" fill="#46566c">1</text>
+  <text x="480.0" y="218" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">主来源</text>
+  <path d="M 896 231 L 1028 231" stroke="#526d91" stroke-width="2" fill="none" stroke-linejoin="round" />
+  <text x="904" y="255" font-size="15" font-weight="400" text-anchor="start" fill="#46566c">1</text>
+  <text x="1020" y="255" font-size="15" font-weight="400" text-anchor="end" fill="#46566c">0..1</text>
+  <text x="962.0" y="218" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">进行中</text>
+  <path d="M 721 283 L 721 395" stroke="#526d91" stroke-width="2" fill="none" stroke-linejoin="round" />
+  <text x="712" y="306" font-size="15" font-weight="400" text-anchor="end" fill="#46566c">0..*</text>
+  <text x="712" y="385" font-size="15" font-weight="400" text-anchor="end" fill="#46566c">0..*</text>
+  <text x="733" y="343.0" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">Subscription · 多对多</text>
+  <path d="M 1203 283 L 1203 395" stroke="#526d91" stroke-width="2" fill="none" stroke-linejoin="round" />
+  <text x="1194" y="306" font-size="15" font-weight="400" text-anchor="end" fill="#46566c">1</text>
+  <text x="1194" y="385" font-size="15" font-weight="400" text-anchor="end" fill="#46566c">0..1</text>
+  <text x="1215" y="343.0" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">形成结果</text>
+  <path d="M 414 448 L 546 448" stroke="#526d91" stroke-width="2" fill="none" stroke-linejoin="round" />
+  <text x="422" y="472" font-size="15" font-weight="400" text-anchor="start" fill="#46566c">0..1</text>
+  <text x="538" y="472" font-size="15" font-weight="400" text-anchor="end" fill="#46566c">1</text>
+  <text x="480.0" y="435" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">绑定</text>
+  <path d="M 896 448 L 1028 448" stroke="#526d91" stroke-width="2" fill="none" stroke-linejoin="round" />
+  <text x="904" y="472" font-size="15" font-weight="400" text-anchor="start" fill="#46566c">0..1</text>
+  <text x="1020" y="472" font-size="15" font-weight="400" text-anchor="end" fill="#46566c">1</text>
+  <text x="962.0" y="435" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">接单建票</text>
+  <path d="M 721 501 L 721 615" stroke="#526d91" stroke-width="2" fill="none" stroke-linejoin="round" />
+  <text x="712" y="524" font-size="15" font-weight="400" text-anchor="end" fill="#46566c">1</text>
+  <text x="712" y="605" font-size="15" font-weight="400" text-anchor="end" fill="#46566c">1..*</text>
+  <text x="733" y="562.0" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">执行历史</text>
+  <path d="M 858 501 L 858 563 L 1080 563 L 1080 615" stroke="#526d91" stroke-width="2" fill="none" stroke-linejoin="round" />
+  <text x="966" y="551" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">持有 1 份授权</text>
+  <path d="M 1250 501 L 1250 615" stroke="#526d91" stroke-width="2" fill="none" stroke-linejoin="round" />
+  <text x="1241" y="524" font-size="15" font-weight="400" text-anchor="end" fill="#46566c">1</text>
+  <text x="1241" y="605" font-size="15" font-weight="400" text-anchor="end" fill="#46566c">0..1</text>
+  <text x="1262" y="562.0" font-size="17" font-weight="400" text-anchor="start" fill="#46566c">accept 时生成</text>
+  <text x="64" y="778" font-size="18" font-weight="500" text-anchor="start" fill="#46566c">只读上下文订阅和 Thread 间的 Correlation 提供背景；执行范围由 Mandate 限定。</text>
+  <text x="64" y="808" font-size="18" font-weight="500" text-anchor="start" fill="#46566c">attach 是对已有 Ticket 的路由命令。单条 Trigger 被 attach 后，该 Eval 以 ignore 和 routed 理由结束。</text>
+</svg>

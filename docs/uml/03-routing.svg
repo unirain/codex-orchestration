@@ -1,0 +1,62 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg aria-labelledby="title description" xmlns="http://www.w3.org/2000/svg" width="1440" height="1050" viewBox="0 0 1440 1050" role="img">
+  <style>text { font-family: 'Helvetica Neue', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; }</style>
+  <title id="title">从「调整 follow up」到「发送邮件有 bug」</title>
+  <desc id="description">同一终端 Thread 已经有 Ticket A。第二个请求先到 A；Worker 交回后，Main 才评估它是否构成新工作。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="#526d91" stroke-width="1.4" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1440" height="1050" rx="0" fill="#ffffff" stroke="none" stroke-width="1.6" data-graph-role="background" />
+  <text x="48" y="43" font-size="17" font-weight="650" text-anchor="start" fill="#2259b0">UML   /   时序图</text>
+  <text x="1392" y="43" font-size="17" font-weight="500" text-anchor="end" fill="#46566c">Codex Orchestration   /   Spec v0.46</text>
+  <text x="48" y="96" font-size="39" font-weight="650" text-anchor="start" fill="#172334">从「调整 follow up」到「发送邮件有 bug」</text>
+  <text x="48" y="136" font-size="21" font-weight="400" text-anchor="start" fill="#46566c">同一终端 Thread 已经有 Ticket A。第二个请求先到 A；Worker 交回后，Main 才评估它是否构成新工作。</text>
+  <path d="M 48 990 L 1392 990" stroke="#b4c3d5" stroke-width="1" fill="none" stroke-linejoin="round" />
+  <text x="48" y="1025" font-size="16" font-weight="500" text-anchor="start" fill="#46566c">规格依据   ·   BR-003、004、005、006   /   DR-002   /   IR-005   /   AC-001、006、007</text>
+  <rect x="38" y="177" width="238" height="72" rx="8" fill="#ffffff" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="157" y="205" font-size="21" font-weight="650" text-anchor="middle" fill="#172334">终端</text>
+  <text x="157" y="232" font-size="16" font-weight="400" text-anchor="middle" fill="#46566c">默认来源 Thread</text>
+  <path d="M 157 249 L 157 902" stroke="#b4c3d5" stroke-width="1.5" fill="none" stroke-dasharray="7 6" stroke-linejoin="round" />
+  <rect x="318" y="177" width="238" height="72" rx="8" fill="#eaf2ff" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="437" y="205" font-size="21" font-weight="650" text-anchor="middle" fill="#172334">Engine</text>
+  <text x="437" y="232" font-size="16" font-weight="400" text-anchor="middle" fill="#46566c">含 Store / Effects</text>
+  <path d="M 437 249 L 437 902" stroke="#b4c3d5" stroke-width="1.5" fill="none" stroke-dasharray="7 6" stroke-linejoin="round" />
+  <rect x="598" y="177" width="238" height="72" rx="8" fill="#f3effc" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="717" y="205" font-size="21" font-weight="650" text-anchor="middle" fill="#172334">Worker A</text>
+  <text x="717" y="232" font-size="16" font-weight="400" text-anchor="middle" fill="#46566c">已有 follow up Ticket</text>
+  <path d="M 717 249 L 717 902" stroke="#b4c3d5" stroke-width="1.5" fill="none" stroke-dasharray="7 6" stroke-linejoin="round" />
+  <rect x="878" y="177" width="238" height="72" rx="8" fill="#f3effc" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="997" y="205" font-size="21" font-weight="650" text-anchor="middle" fill="#172334">Main Session</text>
+  <text x="997" y="232" font-size="16" font-weight="400" text-anchor="middle" fill="#46566c">由 Assessor 驱动</text>
+  <path d="M 997 249 L 997 902" stroke="#b4c3d5" stroke-width="1.5" fill="none" stroke-dasharray="7 6" stroke-linejoin="round" />
+  <rect x="1158" y="177" width="238" height="72" rx="8" fill="#f3effc" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="1277" y="205" font-size="21" font-weight="650" text-anchor="middle" fill="#172334">Worker B</text>
+  <text x="1277" y="232" font-size="16" font-weight="400" text-anchor="middle" fill="#46566c">新建邮件 Ticket</text>
+  <path d="M 1277 249 L 1277 902" stroke="#b4c3d5" stroke-width="1.5" fill="none" stroke-dasharray="7 6" stroke-linejoin="round" />
+  <path d="M 157 300 L 437 300" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="297.0" y="290" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">“发送邮件有 bug”</text>
+  <path d="M 437 329 L 479 329 L 479 354 L 437 354" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="489" y="346" font-size="17" font-weight="500" text-anchor="start" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">按 ID 去重，写入不可变 Trigger</text>
+  <path d="M 437 406 L 717 406" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="577.0" y="396" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">按订阅登记并投递原文</text>
+  <path d="M 717 461 L 437 461" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="577.0" y="451" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">hand-back（超出 A 的范围）</text>
+  <rect x="49" y="486" width="1342" height="395" rx="4" fill="none" stroke="#b4c3d5" stroke-width="1.6" data-graph-role="container" />
+  <text x="64" y="509" font-size="16" font-weight="650" text-anchor="start" fill="#2259b0" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">opt   /   全部负责此 Trigger 的 Worker 均已交回</text>
+  <path d="M 437 528 L 479 528 L 479 553 L 437 553" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="489" y="545" font-size="17" font-weight="500" text-anchor="start" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">保留交回理由；原 Trigger 只回队一次</text>
+  <path d="M 437 605 L 997 605" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="717.0" y="595" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">Gate 准入，按 Thread 串行 Eval，交付 Candidate</text>
+  <path d="M 997 643 L 437 643" stroke="#526d91" stroke-width="2" fill="none" stroke-dasharray="7 6" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="717.0" y="633" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">orchestrator_route · accept</text>
+  <path d="M 437 700 L 479 700 L 479 725 L 437 725" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="489" y="717" font-size="17" font-weight="500" text-anchor="start" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">事务写入 Decision、Mandate、Ticket B、首个 Assignment、Subscription 和 Effects</text>
+  <path d="M 437 794 L 157 794" stroke="#526d91" stroke-width="2" fill="none" stroke-dasharray="7 6" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="297.0" y="784" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">提交后经 Channel 回执</text>
+  <path d="M 437 853 L 1277 853" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="857.0" y="843" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">Executor 取得槽位，创建 B 的 Worker Session 并启动首个 turn</text>
+  <text x="64" y="937" font-size="18" font-weight="500" text-anchor="start" fill="#46566c">多订阅时，一个 Worker 交回后，其余负责者仍可接手。已有负责者时跳过 Eval；交回者不能再被 attach 到同一条 Trigger。</text>
+  <text x="64" y="967" font-size="18" font-weight="500" text-anchor="start" fill="#46566c">若用户意图仍含糊，经 Channel 请用户澄清。新任务的 Mandate 来自明确请求和 accept。</text>
+</svg>

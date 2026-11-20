@@ -1,0 +1,62 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg aria-labelledby="title description" xmlns="http://www.w3.org/2000/svg" width="1440" height="1080" viewBox="0 0 1440 1080" role="img">
+  <style>text { font-family: 'Helvetica Neue', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; }</style>
+  <title id="title">终端退出后，一次测试失败如何驱动下一轮</title>
+  <desc id="description">测试在首个 turn 结束后才返回结果。Executor 根据原 Ticket、Assignment 与测试运行标识，将失败证据送回同一 Worker。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="#526d91" stroke-width="1.4" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1440" height="1080" rx="0" fill="#ffffff" stroke="none" stroke-width="1.6" data-graph-role="background" />
+  <text x="48" y="43" font-size="17" font-weight="650" text-anchor="start" fill="#2259b0">UML   /   时序图</text>
+  <text x="1392" y="43" font-size="17" font-weight="500" text-anchor="end" fill="#46566c">Codex Orchestration   /   Spec v0.46</text>
+  <text x="48" y="96" font-size="39" font-weight="650" text-anchor="start" fill="#172334">终端退出后，一次测试失败如何驱动下一轮</text>
+  <text x="48" y="136" font-size="21" font-weight="400" text-anchor="start" fill="#46566c">测试在首个 turn 结束后才返回结果。Executor 根据原 Ticket、Assignment 与测试运行标识，将失败证据送回同一 Worker。</text>
+  <path d="M 48 1020 L 1392 1020" stroke="#b4c3d5" stroke-width="1" fill="none" stroke-linejoin="round" />
+  <text x="48" y="1055" font-size="16" font-weight="500" text-anchor="start" fill="#46566c">规格依据   ·   FR-003、004、007   /   IR-001、003、004   /   BR-009   /   NFR-002、003、004   /   AC-002、012、015、026</text>
+  <rect x="38" y="177" width="238" height="72" rx="8" fill="#ffffff" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="157" y="205" font-size="21" font-weight="650" text-anchor="middle" fill="#172334">终端</text>
+  <text x="157" y="232" font-size="16" font-weight="400" text-anchor="middle" fill="#46566c">可断开与重连</text>
+  <path d="M 157 249 L 157 936" stroke="#b4c3d5" stroke-width="1.5" fill="none" stroke-dasharray="7 6" stroke-linejoin="round" />
+  <rect x="318" y="177" width="238" height="72" rx="8" fill="#eaf2ff" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="437" y="205" font-size="21" font-weight="650" text-anchor="middle" fill="#172334">宿主后台</text>
+  <text x="437" y="232" font-size="16" font-weight="400" text-anchor="middle" fill="#46566c">Engine / Store</text>
+  <path d="M 437 249 L 437 936" stroke="#b4c3d5" stroke-width="1.5" fill="none" stroke-dasharray="7 6" stroke-linejoin="round" />
+  <rect x="598" y="177" width="238" height="72" rx="8" fill="#ffffff" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="717" y="205" font-size="21" font-weight="650" text-anchor="middle" fill="#172334">Executor</text>
+  <text x="717" y="232" font-size="16" font-weight="400" text-anchor="middle" fill="#46566c">运行绑定与槽位</text>
+  <path d="M 717 249 L 717 936" stroke="#b4c3d5" stroke-width="1.5" fill="none" stroke-dasharray="7 6" stroke-linejoin="round" />
+  <rect x="878" y="177" width="238" height="72" rx="8" fill="#f3effc" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="997" y="205" font-size="21" font-weight="650" text-anchor="middle" fill="#172334">Worker Session</text>
+  <text x="997" y="232" font-size="16" font-weight="400" text-anchor="middle" fill="#46566c">原 Codex thread</text>
+  <path d="M 997 249 L 997 936" stroke="#b4c3d5" stroke-width="1.5" fill="none" stroke-dasharray="7 6" stroke-linejoin="round" />
+  <rect x="1158" y="177" width="238" height="72" rx="8" fill="#eaf6f0" stroke="#b4c3d5" stroke-width="1.6" />
+  <text x="1277" y="205" font-size="21" font-weight="650" text-anchor="middle" fill="#172334">测试进程</text>
+  <text x="1277" y="232" font-size="16" font-weight="400" text-anchor="middle" fill="#46566c">Ticket 专属容器</text>
+  <path d="M 1277 249 L 1277 936" stroke="#b4c3d5" stroke-width="1.5" fill="none" stroke-dasharray="7 6" stroke-linejoin="round" />
+  <path d="M 997 307 L 1277 307" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="1137.0" y="297" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">启动本地测试</text>
+  <path d="M 997 367 L 717 367" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="857.0" y="357" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">turn/completed</text>
+  <path d="M 717 389 L 759 389 L 759 414 L 717 414" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="769" y="406" font-size="17" font-weight="500" text-anchor="start" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">测试仍运行，开始 30 分钟等待窗口</text>
+  <path d="M 157 480 L 437 480" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="297.0" y="470" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">关闭入口，断开连接</text>
+  <path d="M 1277 544 L 717 544" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="997.0" y="534" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">测试失败 · 携带原运行标识</text>
+  <path d="M 717 602 L 437 602" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="577.0" y="592" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">保存摘要及限长失败片段</text>
+  <rect x="49" y="629" width="1342" height="288" rx="4" fill="none" stroke="#b4c3d5" stroke-width="1.6" data-graph-role="container" />
+  <text x="64" y="652" font-size="16" font-weight="650" text-anchor="start" fill="#2259b0" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">alt   /   以结果到达时的 Ticket 和 Assignment 状态分支</text>
+  <text x="70" y="690" font-size="17" font-weight="650" text-anchor="start" fill="#2259b0">[可继续]</text>
+  <path d="M 717 711 L 997 711" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="857.0" y="701" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">校验通过，turn/start</text>
+  <path d="M 997 773 L 1277 773" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="1137.0" y="763" font-size="17" font-weight="500" text-anchor="middle" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">有新验证依据，修复并复测</text>
+  <path d="M 54 795 L 1386 795" stroke="#b4c3d5" stroke-width="1" fill="none" stroke-dasharray="7 6" stroke-linejoin="round" />
+  <text x="69" y="827" font-size="17" font-weight="650" text-anchor="start" fill="#2259b0">[已暂停或 Assignment 过期]</text>
+  <path d="M 717 851 L 759 851 L 759 876 L 717 876" stroke="#526d91" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-linejoin="round" />
+  <text x="769" y="868" font-size="17" font-weight="500" text-anchor="start" fill="#46566c" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" paint-order="stroke">只记录事实；不申请槽位、不唤醒 Worker</text>
+  <text x="64" y="982" font-size="18" font-weight="500" text-anchor="start" fill="#46566c">主动暂停会冻结新动作；活跃 turn 确认终止后释放槽位，已启动的测试可以收尾。恢复须等用户明确继续。</text>
+</svg>
