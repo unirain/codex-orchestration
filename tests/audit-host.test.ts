@@ -61,8 +61,15 @@ test('two real CLI processes auto-connect to one host, post a message and later 
   assert.equal(details.ticket.assignments.length,1)
   await run(['pause',id],elsewhere)
   assert.equal((await run(['status'])).tickets[0].status,'paused')
-  await run(['resume',id])
-  assert.notEqual((await run(['status'])).tickets[0].status,'paused')
+  assert.deepEqual(await run(['resume',id]),{resumed:id})
+  const after=await run(['status'])
+  // The fixture intentionally supplies an unavailable Docker binary. A later dispatch may
+  // already have recorded a new environmental block after the operator's successful resume.
+  if(after.tickets[0].status==='paused'){
+    assert.ok(after.faults.some((f:{owner:string;message:string})=>f.owner===id && /docker.*exited 3/i.test(f.message)),JSON.stringify(after))
+    const detail=await run(['show',id])
+    assert.equal(detail.ticket.assignments.at(-1).report.state,'blocked')
+  }
   const second=JSON.parse(await readFile(endpoint,'utf8'))
   assert.equal(second.pid,first.pid);assert.equal(second.url,first.url)
 })

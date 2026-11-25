@@ -36,6 +36,7 @@ test('AC-038 GitHub CLI headers carry a secondary rate limit delay into PR polli
   t.after(()=>rmSync(dir,{recursive:true,force:true}))
   const executable=join(dir,'gh')
   writeFileSync(executable,`#!/usr/bin/env node
+if(process.argv.includes('user')){console.log(JSON.stringify({login:'agent'}));process.exit(0)}
 if(!process.argv.includes('--include'))process.exit(2)
 process.stdout.write('HTTP/2.0 403 Forbidden\\r\\nretry-after: 120\\r\\n\\r\\n{}')
 process.stderr.write('gh: forbidden (HTTP 403)')

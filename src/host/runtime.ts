@@ -1070,7 +1070,7 @@ export class Host {
         }
       }
     }
-    await this.domain.drain((e) => this.dispatch(e))
+    await this.domain.drain((e) => this.dispatch(e)).catch((error) => this.fault('effects', error))
     if (this.delivery && !this.stop) {
       try {
         await this.delivery.poll()

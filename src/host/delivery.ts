@@ -239,6 +239,7 @@ export class Delivery {
         .filter((r) => this.hooks.open(String(r.ticket)))
         .map((r) => Number(r.number)),
     )
+    let firstError: unknown
     for (const n of ids) {
       try {
         const p = await this.remote.read(n)
@@ -249,9 +250,13 @@ export class Delivery {
           this.db.prepare('UPDATE tracked_pr SET settled=1 WHERE number=?').run(n)
         }
       } catch (e) {
-        if (e instanceof RetryLater) this.nextPoll = Math.max(this.nextPoll, now + e.delayMs)
-        throw e
+        if (e instanceof RetryLater) {
+          this.nextPoll = Math.max(this.nextPoll, now + e.delayMs)
+          throw e
+        }
+        firstError ??= e
       }
     }
+    if (firstError) throw firstError
   }
 }

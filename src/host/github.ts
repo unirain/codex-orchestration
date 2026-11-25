@@ -103,9 +103,12 @@ export class GitHub implements Remote {
       })
     }
   }
-  async verify() {
+  private async verifyIdentity() {
     const user = await this.api('user')
     if (user.login !== this.config.account) throw Error('Dedicated GitHub identity mismatch')
+  }
+  async verify() {
+    await this.verifyIdentity()
     const repo = await this.api('repos/' + this.config.repo)
     if (repo.full_name.toLowerCase() !== this.config.repo.toLowerCase() || repo.permissions?.push !== true)
       throw Error('Repository identity or push permission mismatch')
@@ -182,6 +185,7 @@ export class GitHub implements Remote {
     ) as Pull[]
   }
   async read(n: number) {
+    await this.verifyIdentity()
     return this.parse(await this.api('repos/' + this.config.repo + '/pulls/' + n))
   }
   async create(ref: Ref, title: string, body: string, draft: boolean) {
