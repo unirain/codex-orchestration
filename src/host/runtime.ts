@@ -5,12 +5,13 @@ import type {Domain,Effect} from '../domain.ts'
 import {key} from '../core/ids.ts'
 import type {Ticket} from '../core/model.ts'
 import type {Config} from './config.ts'
-import {CodexSession,ConnectionLost} from '../codex/session.ts'
+import {CodexSession,ConnectionLost,RpcError,errorCode} from '../codex/session.ts'
 import type {ToolContext,SessionEvent} from '../codex/session.ts'
 import {intervals,retryable} from '../codex/retry.ts'
 import {deepseekArgs} from '../codex/deepseek.ts'
 import {prepareTicket,openTicketRuntime,reapTicketRuntime} from '../executor/index.ts'
 import type {Workspace} from '../executor/workspace.ts'
+import {prepareStore,formatVersion} from './storage.ts'
 import {RoleHandlers,MAIN_INSTRUCTIONS,WORKER_INSTRUCTIONS} from './tools.ts'
 import {Supervision} from './supervision.ts'
 import {GitHub} from './github.ts'
@@ -44,7 +45,9 @@ export class Host {
   private sleeping=new Map<string,number>()
   constructor(config:Config,dir:string){
     this.config=config;this.dir=dir
-    this.domain=openDomain(join(dir,'store.sqlite'),{actorId:config.actor,repository:config.repository})
+    const storePath=join(dir,'store.sqlite')
+    prepareStore(storePath)
+    this.domain=openDomain(storePath,{actorId:config.actor,repository:config.repository})
     const db=this.domain.db
     db.exec(`CREATE TABLE IF NOT EXISTS host_settings(id TEXT PRIMARY KEY,value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS host_sessions(owner TEXT PRIMARY KEY,thread TEXT NOT NULL UNIQUE,model TEXT,source TEXT NOT NULL);
@@ -71,6 +74,7 @@ export class Host {
     this.tools=new RoleHandlers(this.domain,{valid:c=>this.valid(c),runTest:(id,c,command)=>this.launchTest(id,c,command),
       deliver:(id,c,args)=>this.deliver(id,c,args as DeliveryRequest),mayReportReady:(c,p)=>this.ready(c,p),
       pause:ticket=>{this.supervision.pause(ticket);queueMicrotask(()=>void this.interrupt(ticket).catch(e=>this.fault(ticket,e)))}})
+    db.exec('PRAGMA user_version='+formatVersion)
   }
   private get db(){return this.domain.db}
   private setting(id:string){return this.db.prepare('SELECT value FROM host_settings WHERE id=?').get(id)?.value}
@@ -216,6 +220,7 @@ export class Host {
       const launcher=environment?environment.appServer():{command:cfg.codex,cwd:mainCwd,env:homeEnv,
         args:cfg.provider==='deepseek'?deepseekArgs(model):['app-server','--stdio']}
       session=await CodexSession.connect({...launcher,role:main?'main':'worker',ticketId:main?undefined:owner,
+        onReplay:(c,a)=>this.tools.replay(c,a),
         onTool:async(c,a)=>{
           try{return await this.tools.call(c,a)}
           catch(e){
@@ -246,7 +251,15 @@ export class Host {
     const session=this.live.get(owner)?.session
     if(!session)return
     const sent=await session.interrupt()
-    if(sent)await session.waitForCompletion(sent.turnId)
+    if(sent){
+      let deadline:NodeJS.Timeout|undefined
+      try{
+        await Promise.race([session.waitForCompletion(sent.turnId),new Promise<never>((_,reject)=>{
+          deadline=setTimeout(()=>reject(Error('Turn interruption needs reconciliation')),30000)
+        })])
+      }catch(e){this.db.prepare('INSERT OR IGNORE INTO host_recovery VALUES(?)').run(owner);throw e}
+      finally{clearTimeout(deadline)}
+    }
   }
   private async tree(w:Workspace){
     if(!w.gitDir)return {commit:'unversioned',dirty:true,tree:null}
@@ -330,16 +343,7 @@ export class Host {
         if(owner!==MAIN){
           this.supervision.turnEnded(owner,e.assignmentId,e.turnId);this.domain.engine.turnEnded(owner,e.assignmentId)
         }
-        if(e.status==='failed'){
-          this.fault(owner,e.errorCode??'Model turn failed')
-          if(owner!==MAIN && retryable.has(e.errorCode??'') && r.attempt<intervals.length && !this.stop && !this.supervision.isPaused(owner)){
-            const ms=intervals[r.attempt]
-            this.db.prepare("UPDATE host_turns SET state='retry',attempt=attempt+1,due=? WHERE id=?").run(Date.now()+ms,r.id)
-          }else if(owner!==MAIN&&this.domain.store.tickets.get(owner)?.assignments.at(-1)?.id===e.assignmentId){
-            this.domain.engine.report(owner,{state:'failed',summary:e.errorCode??'Model failed',question:'Please check the model configuration or retry status.'})
-            this.supervision.pause(owner)
-          }
-        }
+        if(e.status==='failed')this.failedAttempt(r,e.errorCode??'Model turn failed')
       })
     }else if(e.type==='disconnected'&&!this.stop&&this.live.has(owner)){
       this.db.prepare('INSERT OR IGNORE INTO host_recovery VALUES(?)').run(owner)
@@ -353,6 +357,21 @@ export class Host {
   private deferCleanup(owner:string,done:Promise<void>){
     this.cleanup.set(owner,done.catch(e=>this.fault(owner,e)).finally(()=>this.cleanup.delete(owner)))
   }
+  private failedAttempt(r:Call,reason:string){
+    this.fault(r.owner,'Attempt '+(r.attempt+1)+': '+reason)
+    if(r.owner!==MAIN && retryable.has(reason) && r.attempt<intervals.length && !this.stop && !this.supervision.isPaused(r.owner)){
+      this.db.prepare("UPDATE host_turns SET state='retry',attempt=attempt+1,due=? WHERE id=?").run(Date.now()+intervals[r.attempt],r.id)
+      return
+    }
+    this.db.prepare("UPDATE host_turns SET state='failed' WHERE id=?").run(r.id)
+    if(r.owner===MAIN){
+      const evalRecord=this.domain.store.threads.active().find(t=>t.evaluating?.id===r.assignment)?.evaluating
+      if(evalRecord)this.domain.engine.decide(evalRecord.primary??evalRecord.triggerIds[0],{kind:'unavailable',evalId:r.assignment,reason})
+    }else if(this.domain.store.tickets.get(r.owner)?.assignments.at(-1)?.id===r.assignment){
+      this.domain.engine.report(r.owner,{state:'failed',summary:reason,question:'Please check the model or service configuration before resuming.'})
+      this.supervision.pause(r.owner)
+    }
+  }
   private async run(r:Call,live:Live){
     if(this.stop||r.owner!==MAIN&&this.supervision.isPaused(r.owner))return
     this.db.prepare("UPDATE host_turns SET state='prepared',turn=NULL WHERE id=?").run(r.id)
@@ -361,11 +380,15 @@ export class Host {
       // A broken connection may have lost an acknowledgement after the remote side accepted the input.
       if(e instanceof ConnectionLost){
         this.db.prepare('INSERT OR IGNORE INTO host_recovery VALUES(?)').run(r.owner)
-      }else{
-        this.db.prepare("UPDATE host_turns SET state='failed' WHERE id=?").run(r.id)
-        if(r.owner!==MAIN)this.supervision.release(r.owner,r.assignment)
+        throw e
       }
-      throw e
+      const code=e instanceof RpcError?errorCode(e.data):'unknown'
+      const reason=code!=='unknown'?code:e instanceof RpcError && (e.code===-32001||/overloaded|temporarily unavailable/i.test(e.message))
+        ?'serverOverloaded':asError(e)
+      this.domain.store.atomic(()=>{
+        if(r.owner!==MAIN)this.supervision.release(r.owner,r.assignment)
+        this.failedAttempt(r,reason)
+      })
     }
   }
   private waiting(owner:string){

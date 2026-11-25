@@ -67,3 +67,14 @@ test('refuse a matching PR from another author and refuse binding replay with ne
   state.pr!.author='someone-else'
   await assert.rejects(d.deliver('again',ref,req),/not owned/)
 })
+
+test('ambiguous remote creation cannot be retried while no matching fact is visible',async t=>{
+  const {ref,remote,adapter}=setup(t)
+  let attempts=0
+  remote.create=async()=>{attempts++;throw Error('Connection interrupted')}
+  const request={title:'Fix',body:'check complete',draft:false}
+  await assert.rejects(adapter().deliver('first',ref,request),/interrupted/)
+  await assert.rejects(adapter().deliver('first',ref,request),/unconfirmed/)
+  await assert.rejects(adapter().deliver('later',ref,request),/unconfirmed/)
+  assert.equal(attempts,1)
+})

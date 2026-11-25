@@ -15,7 +15,7 @@ export async function localGit(ref:Ref,args:string[], indexFile?:string) {
   return stdout.trim()
 }
 export type DeliveryRequest={title:string;body:string;draft:boolean;commit?:string;operation?:'push'|'create'|'update';pr?:number}
-interface Journal {call:string;ticket:string;ref:string;request:string;commit_sha:string;previous:string|null;push_state:string;pr:number|null;done:number}
+interface Journal {call:string;ticket:string;ref:string;request:string;commit_sha:string;previous:string|null;push_state:string;pr:number|null;done:number;create_state:'pending'|'issued'}
 export interface DeliveryHooks {
   authorize:(ref:Ref)=>void
   bind:(ref:Ref,pr:Pull)=>void
@@ -31,6 +31,9 @@ export class Delivery {
     db.exec(`CREATE TABLE IF NOT EXISTS remote_ops(call TEXT PRIMARY KEY,ticket TEXT NOT NULL,ref TEXT NOT NULL,request TEXT NOT NULL,
       commit_sha TEXT NOT NULL,previous TEXT,push_state TEXT NOT NULL DEFAULT 'pending',pr INTEGER,done INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS tracked_pr(ticket TEXT NOT NULL,number INTEGER NOT NULL,settled INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(ticket,number));`)
+    // Upgrade the first receipt schema without discarding interrupted writes.
+    if(!db.prepare('PRAGMA table_info(remote_ops)').all().some(c=>c.name==='create_state'))
+      db.exec("ALTER TABLE remote_ops ADD COLUMN create_state TEXT NOT NULL DEFAULT 'pending'")
   }
   private journal(call:string) {return this.db.prepare('SELECT * FROM remote_ops WHERE call=?').get(call) as unknown as Journal|undefined}
   private assertPull(ref:Ref,pr:Pull) {
@@ -89,8 +92,17 @@ export class Delivery {
         if(match.length>1)throw Error('Multiple matching PRs; operator reconciliation required')
         if(match.length)pr=match[0]
         else {
+          const unknown=this.db.prepare("SELECT call FROM remote_ops WHERE ticket=? AND create_state='issued' AND pr IS NULL").get(ref.ticket)
+          if(unknown)throw Error('PR creation is unconfirmed and no matching PR is visible; inspect the remote before retrying')
           await checkWrite()
-          pr=await this.remote.create(ref,request.title,request.body,request.draft)
+          this.db.prepare("UPDATE remote_ops SET create_state='issued' WHERE call=?").run(call)
+          try{pr=await this.remote.create(ref,request.title,request.body,request.draft)}
+          catch(e){
+            // A definite rejection allows a fresh authorized attempt. Network loss keeps the unknown receipt.
+            if(['400','401','403','422'].includes(String((e as {status?:string}).status)))
+              this.db.prepare("UPDATE remote_ops SET create_state='pending' WHERE call=?").run(call)
+            throw e
+          }
         }
       }
       this.assertPull(ref,pr)

@@ -34,3 +34,28 @@ test('set role model without changing an already bound session',async t=>{
   assert.equal(h.domain.db.prepare("SELECT value FROM host_settings WHERE id='model:worker'").get()!.value,'next-model')
   await assert.rejects(h.command('role-model',{role:'other',model:'x'}),/role/)
 })
+
+test('AC-018/038: host retries definite pre-turn overload after 15/30/60 s and records exhaustion',async t=>{
+  const {RpcError}=await import('../src/codex/session.ts')
+  const dir=mkdtempSync(join(tmpdir(),'orch-retry-'));t.after(()=>rmSync(dir,{recursive:true,force:true}))
+  const h=new Host({repoDir:dir,repository:'org/demo',actor:'me',provider:'openai',codex:'/unused',modelKeyEnv:'TEST_KEY',image:'unused:fixture'},dir)
+  t.after(()=>h.close())
+  const d=h.domain
+  d.engine.receive(terminalTrigger('retry','Fix mail','me'));d.engine.evaluateDue()
+  const result=d.engine.decide('retry',{kind:'accept',title:'Mail',scope:'Mail',reason:'direct',evalId:d.engine.candidate('retry')!.evalId})
+  let attempts=0
+  const session={startTurn:async()=>{attempts++;throw new RpcError('turn/start',{code:-32001,message:'server overloaded'})}}
+  // A rejected RPC is definitive. Exercise the production effect and timer loop with a deterministic port.
+  Object.assign(h,{session:async()=>({session})})
+  for(const wait of [15000,30000,60000]){
+    const before=Date.now()
+    await h.tick()
+    const row=d.db.prepare("SELECT due,state FROM host_turns WHERE owner=?").get(result.ticketId!)!
+    assert.equal(row.state,'retry');assert.ok(Number(row.due)>=before+wait&&Number(row.due)<=Date.now()+wait)
+    d.db.prepare("UPDATE host_turns SET due=0 WHERE owner=?").run(result.ticketId!)
+  }
+  await h.tick()
+  assert.equal(attempts,4);assert.equal(h.supervision.isPaused(result.ticketId!),true)
+  assert.equal(d.db.prepare('SELECT state FROM host_turns WHERE owner=?').get(result.ticketId!)!.state,'failed')
+  assert.equal(h.supervision.occupied(),0)
+})
