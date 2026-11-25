@@ -6,6 +6,8 @@
 
 - [intent.md](intent.md) — 项目意图与范围
 - [spec.md](spec.md) — 系统规格
+- [plan.md](plan.md) — 已批准的实施顺序与任务契约
+- [验收证据](docs/acceptance.md) — 44 项有效验收的实测环境及复跑入口
 - [UML 架构图集](docs/uml/README.md) — 组件、领域对象、消息路由、后台接续、PR 收尾与重启恢复
 
 ## 双任务路由演示
@@ -34,7 +36,7 @@ sqlite3 ./routing-review.sqlite 'select id, json(value) from domain_disposition;
 
 首版在本机 Node、Git、GitHub CLI、Docker 和 Codex App Server 上运行。已验证的主机与容器 Codex 版本为 0.171.0。工作目录和状态目录必须位于 Docker 能挂载的位置。macOS / Colima 下请选用户主目录中的位置。宿主工作树由程序管理，目标仓库的 origin 指向本次绑定的仓库。
 
-先在本机准备一个带 Node、Git 和 Linux Codex 的固定版本开发镜像。测试中使用 `orch-local/codex-node:0.171.0`。仓库内的示例 Dockerfile 供操作者构建自己的可信镜像，Ticket 启动时只使用本机已准备的镜像。[镜像示例](src/executor/container/Dockerfile.example)
+先在本机准备一个带 Node、Git 和 Linux Codex 的固定版本开发镜像。测试中使用 `orch-local/codex-node:0.171.0`。仓库内的示例 Dockerfile 供操作者构建自己的可信镜像，Ticket 启动时只使用本机已准备的镜像。[准备镜像的命令](src/executor/container/README.md) · [镜像示例](src/executor/container/Dockerfile.example)
 
 将如下绑定保存在 `~/.config/codex-orchestration/binding.json`，目录归当前用户所有，建议文件权限为 600。改为自己的仓库、路径和服务身份。专用 gh 配置须已登录绑定账号且具备该仓库的推送权限。模型凭据从指定的环境变量读取。
 
@@ -72,6 +74,7 @@ node src/cli.ts say '修一下邮件地址校验，先复现问题，再修复�
 node src/cli.ts status
 node src/cli.ts show TICKET_ID
 node src/cli.ts trace TRIGGER_ID
+node src/cli.ts reassess TRIGGER_ID
 node src/cli.ts track-pr TICKET_ID 123
 node src/cli.ts clear-excerpts TICKET_ID
 node src/cli.ts role-model worker deepseek-flash
