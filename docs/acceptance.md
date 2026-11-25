@@ -2,6 +2,19 @@
 
 依据[规格 v0.46](../spec.md#acceptance-scenarios)。表中的「实测」标明实际使用的运行环境，「受控」表示该用例所需的时间、消息或故障由测试提供。「部分」说明还有条件缺少证据。AC-024、AC-025 已在规格中后置，首版共有 44 项有效验收。
 
+## 当前验证结果
+
+2026-11-25，集成修订 `3741081` 上的完整测试运行通过 **85/85**，失败 0 项、跳过 0 项。同一工作树的严格 TypeScript 检查通过。真实模型和容器测试使用专用 DeepSeek 变量、Codex App Server 0.171.0 及 Colima。44 项首版验收中，实际测试仓库的 AC-046 尚待评审者合并 PR #1 并观察终端的唯一结束通知。自动化套件另有可重复的关闭、重放和去重用例。
+
+```sh
+CODEX_TEST_BIN=/absolute/path/to/codex-0.171.0 \
+ORCH_TEST_IMAGE=orch-local/codex-node:0.171.0 \
+CODEX_LIVE_DEEPSEEK=1 ORCH_DEEPSEEK_LIVE=1 \
+node --test --test-concurrency=3 tests/*.test.ts
+```
+
+首阶段交接依次为 `b5e64ab` 测试入口、`f4f6f44` 原子接单、`edc1edd` 订阅和交回、`77c9d57` 双任务演示。运行 `npm run demo:routing` 可从空库重放三条消息，并分别核对两次 Eval 和两次启动请求。后续真实执行的 Ticket、thread、终端回执和远端提交可在[独立仓库验收记录](acceptance/ac-046.md)中交叉核对。
+
 ## 复跑环境
 
 2026-11-25 的独立审查使用本机 Node 26.13、SQLite、Git、Codex App Server 0.171.0 和本地 Colima 镜像。以下命令运行真实 CLI、真实容器及真实 App Server 的本地 Responses 夹具。真实模型行为和额度错误的补充验收见下文。真实 GitHub 操作、回执丢失和模型续接的记录另见[独立仓库验收](acceptance/ac-046.md)。
