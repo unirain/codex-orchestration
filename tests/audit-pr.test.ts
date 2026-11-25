@@ -95,9 +95,9 @@ test('AC-037/038 persisted tracking survives restarts, respects 120s backoff, de
   d.db.prepare('INSERT INTO tracked_pr(ticket,number) VALUES(?,7),(?,7)').run(ticket,'other')
   await assert.rejects(old.poll(100),RetryLater)
   outage=false
-  await old.poll(60_100);await old.poll(120_099)
+  assert.equal(await old.poll(60_100),0);assert.equal(await old.poll(120_099),0)
   assert.deepEqual(seen,[7])
-  await old.poll(120_100);assert.deepEqual(seen,[7,7])
+  assert.equal(await old.poll(120_100),1);assert.deepEqual(seen,[7,7])
   await old.poll(180_099);assert.deepEqual(seen,[7,7])
   closedAt=closeLate
   const restarted=fresh()

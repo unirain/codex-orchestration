@@ -4,7 +4,7 @@
 
 ## 当前验证结果
 
-2026-11-25，集成修订 `3741081` 上的完整测试运行通过 **85/85**，失败 0 项、跳过 0 项。同一工作树的严格 TypeScript 检查通过。真实模型和容器测试使用专用 DeepSeek 变量、Codex App Server 0.171.0 及 Colima。44 项首版验收中，实际测试仓库的 AC-046 尚待评审者合并 PR #1 并观察终端的唯一结束通知。自动化套件另有可重复的关闭、重放和去重用例。
+2026-11-25，集成修订 `3741081` 上的完整测试运行通过 **85/85**，失败 0 项、跳过 0 项。同一工作树的严格 TypeScript 检查通过。真实模型和容器测试使用专用 DeepSeek 变量、Codex App Server 0.171.0 及 Colima。AC-046 已在独立测试仓库完成，PR #1 合并后宿主只发送了一条结束通知。自动化套件另有可重复的关闭、重放和去重用例。
 
 ```sh
 CODEX_TEST_BIN=/absolute/path/to/codex-0.171.0 \
@@ -91,4 +91,4 @@ ORCH_DEEPSEEK_LIVE=1 CODEX_TEST_BIN=/absolute/path/to/codex-0.171.0 \
 | AC-043 | 真实 Ticket 容器隔离、受保护的模型身份、持久卷与原 thread 续接均有实测；替换容器接续同一工作，历史缺失时返回恢复阻塞。 | [Docker 和真实 Worker](../tests/executor-container.test.ts) · [协议](../tests/codex-real.test.ts) · [投递对账](../tests/host-recovery.test.ts) |
 | AC-044 | 使用真实 Worker 成功执行授权命令，换入无效测试密钥后 turn 失败，文件未变化；换回服务凭据恢复原 thread，只产生一次追加。宿主记录的 Input 与已成功的远端写入分别通过历史核对和 PR 收据测试复核。 | [密钥失效与恢复](../tests/executor-container.test.ts) · [已送达 Input](../tests/host-recovery.test.ts) · [远端回执](acceptance/ac-046.md) |
 | AC-045 | 实际宿主 SQLite、Git 与受控远端建立 PR 回执。清理目录和失败片段、关闭并重开宿主后，trace 按原 Trigger 回溯 Decision、Mandate、Assignment、历次报告、PR 和清理标记。重复 Trigger 未开新单。 | [跨重启 trace](../tests/audit-history.test.ts) |
-| AC-046 | 独立仓库已取得真实双 Ticket、离线失败自动修复、复测通过、PR 创建与回执丢失后的同 PR 对账。审查时只读 GitHub 查询显示 PR #1 仍 open；合并后唯一 ended/merged 终端结果仍待实际观察。 | [运行标识与 PR](acceptance/ac-046.md) |
+| AC-046 | 独立仓库已取得真实双 Ticket、离线失败自动修复、复测通过、PR 创建与回执丢失后的同 PR 对账。PR #1 经发起人授权合并，宿主记录的结束时间与 GitHub 一致，邮件 Ticket 只有一条结束事件及一条终端通知，follow up Ticket 保持 waiting。 | [运行标识与 PR](acceptance/ac-046.md) |

@@ -1073,9 +1073,9 @@ export class Host {
     await this.domain.drain((e) => this.dispatch(e)).catch((error) => this.fault('effects', error))
     if (this.delivery && !this.stop) {
       try {
-        await this.delivery.poll()
+        if (await this.delivery.poll()) this.clear('github-poll')
       } catch (e) {
-        this.fault('github', e)
+        this.fault('github-poll', e)
       }
       if ((this.sleeping.get('deliveries') ?? 0) <= Date.now()) await this.reconcileDeliveries()
     }

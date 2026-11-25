@@ -230,7 +230,7 @@ export class Delivery {
     return this.db.prepare('SELECT call,ticket,ref,request FROM remote_ops WHERE done=0 ORDER BY rowid').all()
   }
   async poll(now = Date.now()) {
-    if (now < this.nextPoll) return
+    if (now < this.nextPoll) return 0
     this.nextPoll = now + 60000
     const ids = new Set(
       this.db
@@ -258,5 +258,6 @@ export class Delivery {
       }
     }
     if (firstError) throw firstError
+    return ids.size
   }
 }
