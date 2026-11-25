@@ -34,7 +34,7 @@ function fail(reason: string): never {
 function object(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
-function parseHistory(history: Awaited<ReturnType<ReadHistory>>): RemoteTurn[] {
+export function parseHistory(history: Awaited<ReturnType<ReadHistory>>): RemoteTurn[] {
   if (!Array.isArray(history.turns)) fail('thread/read did not return turn history')
   const ids = new Set<string>()
   const markers = new Set<string>()
@@ -59,7 +59,7 @@ function parseHistory(history: Awaited<ReturnType<ReadHistory>>): RemoteTurn[] {
   })
 }
 
-function checkCalls(calls: Call[], turns: RemoteTurn[]): Verification[] {
+export function checkCalls(calls: Call[], turns: RemoteTurn[]): Verification[] {
   const verified = calls.map(call => {
     const ids: unknown = JSON.parse(call.ids)
     if (!Array.isArray(ids) || !ids.every(id => typeof id === 'string') || new Set(ids).size !== ids.length) fail('invalid persisted input list: ' + call.id)
