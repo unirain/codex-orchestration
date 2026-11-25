@@ -19,22 +19,8 @@ test('two real CLI processes auto-connect to one host, post a message and later 
   await Promise.all([repo,bin,elsewhere].map(path=>mkdir(path)))
   const fakeCodex=join(bin,'app-server.mjs')
   const firstMessage='调整 follow up'
-  await writeFile(fakeCodex,`#!${process.execPath}
-import {createInterface} from 'node:readline'
-const out=m=>console.log(JSON.stringify(m))
-const threadId='synthetic-local-main',turnId='synthetic-turn'
-createInterface({input:process.stdin}).on('line',line=>{
- const q=JSON.parse(line),{id,method,params}=q
- if(method==='initialize')out({id,result:{userAgent:'codex-orchestration/0.171.0 LOCAL-AUDIT-FIXTURE'}})
- else if(method==='thread/start')out({id,result:{thread:{id:threadId,status:{type:'idle'}},model:'audit-model'}})
- else if(method==='turn/start'){
-   out({id,result:{turn:{id:turnId,status:'inProgress'}}})
-   out({id:987,method:'item/tool/call',params:{threadId,turnId,callId:'accept',namespace:null,tool:'orchestrator_route',
-     arguments:{kind:'accept',title:'Follow up',scope:'Follow up',reason:'explicit local fixture request'}}})
- } else if(!method&&id===987)out({method:'turn/completed',params:{threadId,turn:{id:turnId,status:'completed'}}})
- else if(method==='thread/read')out({id,result:{thread:{id:threadId,turns:[]}}})
-})
-`,{mode:0o700})
+  const handler=new URL('./fixtures/main-for-cli.mjs',import.meta.url).href
+  await writeFile(fakeCodex,`#!${process.execPath}\nimport ${JSON.stringify(handler)}\n`,{mode:0o700})
   // No credentials, real provider or running container are needed for this host/CLI boundary test.
   await writeFile(join(bin,'docker'),'#!/bin/sh\nexit 3\n',{mode:0o700})
   const config:Config={actor:'local-owner',repository:'audit/terminal',repoDir:repo,codex:fakeCodex,image:'audit/missing:fixture',
@@ -79,4 +65,28 @@ createInterface({input:process.stdin}).on('line',line=>{
   assert.notEqual((await run(['status'])).tickets[0].status,'paused')
   const second=JSON.parse(await readFile(endpoint,'utf8'))
   assert.equal(second.pid,first.pid);assert.equal(second.url,first.url)
+})
+
+test('offline scripted Main accepts the guardian capability over loopback and rejects unauthenticated clients',async t=>{
+  const {openMainTransport}=await import('../src/codex/main-transport.ts')
+  const {CodexSession}=await import('../src/codex/session.ts')
+  const root=await mkdtemp(join(tmpdir(),'orch-scripted-main-'))
+  const home=join(root,'home'),cwd=join(root,'cwd'),bin=join(root,'fake-main')
+  await Promise.all([home,cwd].map(dir=>mkdir(dir,{mode:0o700})))
+  const handler=new URL('./fixtures/main-for-cli.mjs',import.meta.url).href
+  await writeFile(bin,`#!${process.execPath}\nimport(${JSON.stringify(handler)})\n`,{mode:0o700})
+  const transport=await openMainTransport({bin,args:['app-server','--stdio'],cwd,
+    env:{HOME:home,CODEX_HOME:home,PATH:process.env.PATH}})
+  t.after(async()=>{await transport.close();await rm(root,{recursive:true,force:true})})
+  const address=transport.descriptor.args.find(v=>v.startsWith('ws://127.0.0.1:'))
+  assert.ok(address)
+  const unauthorized=new WebSocket(address)
+  const allowed=await new Promise<boolean>(resolve=>{
+    unauthorized.addEventListener('error',()=>resolve(false),{once:true})
+    unauthorized.addEventListener('open',()=>{unauthorized.close();resolve(true)},{once:true})
+  })
+  assert.equal(allowed,false)
+  const session=await CodexSession.connect({...transport.descriptor,role:'main',onTool:async()=>{throw Error('unexpected tool')}})
+  try {assert.equal((await session.startThread({cwd})).threadId,'synthetic-local-main')}
+  finally {await session.close()}
 })
