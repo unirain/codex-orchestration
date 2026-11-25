@@ -1,0 +1,10 @@
+# Operator-owned build context, prepared before binding a repository. Include the
+# matching official @openai/codex Linux package as codex.tgz in this context.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+USER root
+COPY codex.tgz /tmp/codex.tgz
+RUN mkdir -p /opt/codex && tar -xzf /tmp/codex.tgz -C /opt/codex --strip-components=3 \
+      --wildcards 'package/vendor/*/bin/*' 'package/vendor/*/codex-resources/bwrap' 'package/vendor/*/codex-path/rg' \
+    && ln -s /opt/codex/bin/codex /usr/local/bin/codex && ln -s /opt/codex/codex-path/rg /usr/local/bin/rg \
+    && rm /tmp/codex.tgz && codex --version
