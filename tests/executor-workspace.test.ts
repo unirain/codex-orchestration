@@ -39,4 +39,10 @@ test('Git uses remote HEAD and private metadata; dirty operator checkout is pres
   assert.equal(await git(a.directory,'rev-parse','HEAD'),base);assert.equal(await readFile(join(repo,'code'),'utf8'),'dirty')
   await writeFile(join(a.directory,'new'),'stay');assert.equal((await prepareTicket({...o,ticketId:'A'})).directory,a.directory)
   assert.equal(await git(repo,'branch','--show-current'),'feature/mail')
+  await git(a.directory,'add','new');await git(a.directory,'commit','-qm','Ticket checkpoint')
+  const checkpoint=await git(a.directory,'rev-parse','HEAD')
+  await rm(a.directory,{recursive:true})
+  await assert.rejects(prepareTicket({...o,ticketId:'A'}),err=>String(err).includes(checkpoint) &&
+    String(err).includes('verified branch '+a.branch) && String(err).includes('uncommitted changes cannot be verified'))
+  assert.equal(await readFile(join(b.directory,'code'),'utf8'),'base')
 })
