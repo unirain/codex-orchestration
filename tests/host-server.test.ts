@@ -14,7 +14,7 @@ test('AC-030/042: one scheduler, authenticated reconnect, independent client lif
     const a=await connect(dir,'org/repo'),b=await connect(dir,'org/repo')
     assert.ok(a&&b);assert.equal(a.url,b.url);assert.equal(await connect(dir,'org/other'),undefined)
     for(const auth of ['', 'Bearer wrong']){
-      const r=await fetch(a.url+'/resume',{method:'POST',headers:{authorization:auth}})
+      const r:Response=await fetch(a.url+'/resume',{method:'POST',headers:{authorization:auth}})
       assert.equal(r.status,403)
     }
     assert.equal(seen,0)

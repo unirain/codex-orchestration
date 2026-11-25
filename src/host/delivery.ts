@@ -7,14 +7,14 @@ import type { Pull, Remote, Ref } from './github.ts'
 import { RetryLater } from './github.ts'
 
 const exec=promisify(execFile)
-export async function localGit(ref:Ref,args:string[]) {
+export async function localGit(ref:Ref,args:string[], indexFile?:string) {
   const directory=realpathSync(ref.directory), gitDir=realpathSync(ref.gitDir)
   if (gitDir===directory||gitDir.startsWith(directory+sep)||directory!==resolve(ref.directory)) throw Error('Untrusted workspace metadata')
   const {stdout}=await exec('git',['--git-dir='+gitDir,'--work-tree='+directory,'-c','core.hooksPath=/dev/null','-c','commit.gpgSign=false',...args],
-    {cwd:gitDir,env:{PATH:process.env.PATH,LANG:'C',GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1',GIT_TERMINAL_PROMPT:'0'},timeout:45000})
+    {cwd:gitDir,env:{...(indexFile?{GIT_INDEX_FILE:indexFile}:{}),PATH:process.env.PATH,LANG:'C',GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1',GIT_TERMINAL_PROMPT:'0'},timeout:45000})
   return stdout.trim()
 }
-export type DeliveryRequest={title:string;body:string;draft:boolean;commit?:string}
+export type DeliveryRequest={title:string;body:string;draft:boolean;commit?:string;operation?:'push'|'create'|'update';pr?:number}
 interface Journal {call:string;ticket:string;ref:string;request:string;commit_sha:string;previous:string|null;push_state:string;pr:number|null;done:number}
 export interface DeliveryHooks {
   authorize:(ref:Ref)=>void
@@ -27,7 +27,6 @@ export class Delivery {
   private active=new Set<string>()
   nextPoll=0
   constructor(db:DatabaseSync,remote:Remote,repo:string,account:string,hooks:DeliveryHooks) {
-    Object.assign(this,{db,remote,repo,account,hooks})
     this.db=db; this.remote=remote; this.repo=repo; this.account=account; this.hooks=hooks
     db.exec(`CREATE TABLE IF NOT EXISTS remote_ops(call TEXT PRIMARY KEY,ticket TEXT NOT NULL,ref TEXT NOT NULL,request TEXT NOT NULL,
       commit_sha TEXT NOT NULL,previous TEXT,push_state TEXT NOT NULL DEFAULT 'pending',pr INTEGER,done INTEGER NOT NULL DEFAULT 0);
@@ -39,7 +38,7 @@ export class Delivery {
     for(const t of this.db.prepare('SELECT ticket FROM tracked_pr WHERE number=? AND ticket<>?').all(pr.number,ref.ticket))
       if(this.hooks.open(String(t.ticket))) throw Error('PR is bound to another open Ticket')
   }
-  async deliver(call:string,ref:Ref,request:DeliveryRequest) {
+  async deliver(call:string,ref:Ref,request:DeliveryRequest, live:()=>void=()=>{}) {
     if(this.active.has(ref.ticket))throw Error('Delivery already in progress for this Ticket')
     if(!request.title?.trim()||typeof request.body!=='string'||typeof request.draft!=='boolean')throw Error('Incomplete PR request')
     this.active.add(ref.ticket)
@@ -49,7 +48,7 @@ export class Delivery {
       if(op?.done)return {pr:op.pr,commit:op.commit_sha}
       await this.remote.verify()
       if(!op){
-        this.hooks.authorize(ref)
+        live();this.hooks.authorize(ref)
         if(await localGit(ref,['symbolic-ref','--short','HEAD'])!==ref.branch)throw Error('Ticket branch mismatch')
         let sha=await localGit(ref,['rev-parse','HEAD'])
         if(request.commit && request.commit!==sha)throw Error('Requested commit differs from Ticket HEAD')
@@ -58,7 +57,7 @@ export class Delivery {
           await localGit(ref,['add','--all','--','.'])
           const staged=await localGit(ref,['diff','--cached','--name-only','--no-ext-diff'])
           if(staged) {
-            this.hooks.authorize(ref)
+            live();this.hooks.authorize(ref)
             await localGit(ref,['-c','user.name='+this.account,'-c','user.email='+this.account+'@users.noreply.github.com','commit','-m',request.title])
             sha=await localGit(ref,['rev-parse','HEAD'])
           }
@@ -70,13 +69,18 @@ export class Delivery {
       const head=await this.remote.head(ref.branch)
       if(head!==op.commit_sha){
         if(head!==op.previous||op.push_state==='confirmed')throw Error('Remote head diverged; operator reconciliation required')
-        this.hooks.authorize(ref)
+        live();this.hooks.authorize(ref)
         await this.remote.push(ref,op.commit_sha)
         if(await this.remote.head(ref.branch)!==op.commit_sha)throw Error('Remote push not confirmed')
       }
       this.db.prepare("UPDATE remote_ops SET push_state='confirmed' WHERE call=?").run(call)
+      if(request.operation==='push'){
+        this.db.prepare('UPDATE remote_ops SET done=1 WHERE call=?').run(call)
+        return {pr:null,commit:op.commit_sha}
+      }
       let pr:Pull
-      if(op.pr)pr=await this.remote.read(op.pr)
+      if(request.operation==='update' && !request.pr)throw Error('Updating a PR requires its number')
+      if(op.pr||request.pr)pr=await this.remote.read((op.pr||request.pr)!)
       else {
         const candidates=await this.remote.lookup(ref)
         const open=candidates.filter(p=>!p.closedAt)
@@ -84,7 +88,7 @@ export class Delivery {
         if(match.length>1)throw Error('Multiple matching PRs; operator reconciliation required')
         if(match.length)pr=match[0]
         else {
-          this.hooks.authorize(ref)
+          live();this.hooks.authorize(ref)
           pr=await this.remote.create(ref,request.title,request.body,request.draft)
         }
       }
@@ -93,11 +97,11 @@ export class Delivery {
       this.db.prepare('UPDATE remote_ops SET pr=? WHERE call=?').run(pr.number,call)
       if(!pr.closedAt) {
         if(pr.title!==request.title||pr.body!==request.body){
-          this.hooks.authorize(ref)
+          live();this.hooks.authorize(ref)
           await this.remote.edit(pr.number,request.title,request.body)
         }
         if(pr.draft && !request.draft) {
-          this.hooks.authorize(ref)
+          live();this.hooks.authorize(ref)
           await this.remote.ready(pr.number)
         }
       }

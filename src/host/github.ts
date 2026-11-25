@@ -6,7 +6,7 @@ import { homedir } from 'node:os'
 import { promisify } from 'node:util'
 
 const exec = promisify(execFile)
-export interface GithubConfig { repo: string; account: string; gh: string; configDir: string }
+export interface GithubConfig { repo: string; account: string; gh: string; configDir: string; localLoginTestRepo?: string }
 export interface Ref { ticket: string; branch: string; base: string; directory: string; gitDir: string }
 export interface Pull {
   number: number; repo: string; headRepo: string; author: string; branch: string; base: string
@@ -33,7 +33,7 @@ export class GitHub implements Remote {
   constructor(config: GithubConfig) {
     if (!/^[a-z\d][a-z\d-]*\/[\w.-]+$/i.test(config.repo) || !config.account.trim()) throw Error('Invalid repository binding')
     if (![config.gh,config.configDir].every(isAbsolute)) throw Error('Dedicated gh executable and config directory must be absolute')
-    if (realpathSync(config.configDir) === homedir()+'/.config/gh') throw Error('Use a dedicated gh config directory')
+    if (realpathSync(config.configDir) === homedir()+'/.config/gh' && config.localLoginTestRepo !== config.repo) throw Error('Use a dedicated gh config directory')
     this.config={...config, configDir:realpathSync(config.configDir), gh:realpathSync(config.gh)}
     this.env={PATH:process.env.PATH, LANG:'C', GH_CONFIG_DIR:this.config.configDir, GH_HOST:'github.com',
       GH_PROMPT_DISABLED:'1', GIT_CONFIG_NOSYSTEM:'1', GIT_CONFIG_GLOBAL:'/dev/null', GIT_TERMINAL_PROMPT:'0'}
