@@ -1,4 +1,5 @@
 /** The domain Engine: the single entry point of the core, and the role interfaces its callers receive. */
+import { key } from './ids.ts'
 import { UserError } from './errors.ts'
 import { isoTime, liveTicket } from './model.ts'
 import type { ChannelRef, Decision, PolicyEffect, ThreadRef, Ticket, Trigger } from './model.ts'
@@ -49,6 +50,27 @@ export class Engine {
    * Triggers that arrive while an Eval of that Thread runs wait together for the next one.
    */
   receive(trigger: Trigger): ReceiveResult { return this.repo.atomic(() => this.intake.receive(trigger)) }
+  /** A human explicitly selected this Attention. Preserve the source event and deliver only to its Ticket. */
+  answerAttention(ticketId: string, questionId: string, trigger: Trigger): void {
+    this.repo.atomic(() => {
+      const ticket = this.repo.tickets.get(ticketId)
+      if (!ticket || ticket.ended || !ticket.attention?.id || ticket.attention.id !== questionId)
+        throw Error('这条问题已处理或已被替换')
+      if (!this.options.scope.scope(trigger).listened || !this.options.policy().revalidate(ticket.mandate))
+        throw Error('当前工作授权无效')
+      if (this.repo.triggers.get(trigger.id)) throw Error('发送标识已被使用')
+      const question = ticket.attention
+      this.repo.triggers.save(trigger)
+      this.replies.withdrawAttention(question.id)
+      delete ticket.attention
+      this.repo.triggers.saveDisposition(trigger.id, {fanout: [ticket.id], at: trigger.at})
+      this.tickets.addInput(ticket, {
+        id: key('input',ticket.id,'trigger',trigger.id), kind:'trigger', human:true, triggerId:trigger.id,
+        at:trigger.at, note:'Operator answer to the selected question: ' + question.question,
+      })
+      this.options.emit?.({type:'trigger.received',at:trigger.at,data:{triggerId:trigger.id,threads:trigger.threads.map(t=>t.source+':'+t.id)}})
+    })
+  }
   /**
    * A Source's request to make an open ticket follow one of its Threads, such as a pull request's, `own` when the ticket
    * opened it: the ticket subscribes to it, and a ready report ends it only once `followsDone` holds (see `Tickets.followsDone`).

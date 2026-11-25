@@ -1,5 +1,5 @@
 /** What the Executor and its workers report about the Assignments that run tickets. */
-import { key } from './ids.ts'
+import { randomUUID } from 'node:crypto'
 import { UserError } from './errors.ts'
 import { latestAssignment, liveTicket, runningAssignment } from './model.ts'
 import type { ReportState, Ticket } from './model.ts'
@@ -118,7 +118,7 @@ export class Assignments extends EnginePart {
     if (assignment.state === 'ended') throw new UserError('assignmentEnded')
     const at = this.now()
     const previous = ticket.attention
-    const ask = (question: string) => ({ id: key('attention', ticketId, question, at), question, ...(report.askedBy ? { triggerId: report.askedBy } : {}) })
+    const ask = (question: string) => ({ id: randomUUID(), question, ...(report.askedBy ? { triggerId: report.askedBy } : {}) })
     const asked = report.question && report.question !== previous?.question ? ask(report.question) : previous
     const attention = report.question === null || report.state === 'ready' ? undefined : asked
     if (attention) ticket.attention = attention

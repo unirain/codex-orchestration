@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import { createInterface } from 'node:readline/promises'
+import { readable } from './terminal/presentation.ts'
 import { loadConfig, instanceDir } from './host/config.ts'
 import { connect, invoke, lockInstance, privateDir, serve } from './host/server.ts'
 
@@ -89,10 +90,44 @@ async function main(args: string[]) {
     if (!info)
       throw Error('Host startup failed: ' + readFileSync(join(dir, 'startup.log'), 'utf8').slice(-512))
   }
+  async function request(name: string, body: Record<string, unknown> = {}) {
+    try {
+      return await invoke(info!, name, body)
+    } catch (e) {
+      // The following poll or idempotent retry uses the newly authenticated endpoint.
+      const current = await connect(dir, config.repository)
+      if (current) info = current
+      throw e
+    }
+  }
   async function command(name: string, body: Record<string, unknown>) {
-    console.log(JSON.stringify(await invoke(info!, name, body), null, 2))
+    if (!process.stdout.isTTY) {
+      console.log(JSON.stringify(await request(name, body), null, 2))
+      return
+    }
+    let result = await request(name, body)
+    if (name === 'status' || name === 'show') {
+      try {
+        const view = await request('chat-view')
+        if (name === 'status') result = view
+        else
+          result = {
+            ...result,
+            status: view.tickets.find((t: { id: string }) => t.id === body.ticket)?.status,
+          }
+      } catch (e) {
+        if (!['Unknown Ticket', 'Unknown operation', 'Unknown command'].includes((e as Error).message))
+          throw e
+      }
+    }
+    console.log(readable(name, result))
   }
   if (!action || action === 'chat') {
+    if (process.stdin.isTTY && process.stdout.isTTY) {
+      const { terminalChat } = await import('./terminal/chat.ts')
+      await terminalChat(request, dir, config.repository)
+      return
+    }
     const input = createInterface({ input: process.stdin, output: process.stdout })
     let cursor = 0,
       reading = false

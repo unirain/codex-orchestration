@@ -96,6 +96,9 @@ export class Supervision {
         threadId TEXT PRIMARY KEY, role TEXT NOT NULL, ticketId TEXT, turnId TEXT NOT NULL, total INTEGER NOT NULL
       );
     `)
+    if (!domain.db.prepare('PRAGMA table_info(worker_pause)').all().some(row => row.name === 'cause')) {
+      domain.db.exec("ALTER TABLE worker_pause ADD COLUMN cause TEXT NOT NULL DEFAULT 'unknown'")
+    }
   }
 
   private get db() { return this.d.db }
@@ -193,11 +196,18 @@ export class Supervision {
   }
 
   /** The caller interrupts the returned turn and acknowledges its terminal event before freeing its slot. */
-  pause(ticketId: string): string | undefined {
+  pauseCause(ticketId: string): string | undefined {
+    return this.db.prepare('SELECT cause FROM worker_pause WHERE ticketId=?').get(ticketId)?.cause as string | undefined
+  }
+
+  pause(ticketId: string, cause = 'manual'): string | undefined {
     return this.d.store.atomic(() => {
       const ticket = this.d.store.tickets.get(ticketId)
       if (!ticket || ticket.ended) throw new Error('Only an open ticket can pause')
-      this.db.prepare('INSERT OR IGNORE INTO worker_pause VALUES (?,?)').run(ticketId,this.now())
+      // An automatic pause must not overwrite a prior manual, legacy, or service block.
+      const old = this.pauseCause(ticketId)
+      if (!old || cause === 'manual' || (old.startsWith('question:') && cause !== 'unknown'))
+        this.db.prepare('INSERT OR REPLACE INTO worker_pause(ticketId,at,cause) VALUES (?,?,?)').run(ticketId,this.now(),cause)
       this.db.prepare('DELETE FROM worker_queue WHERE ticketId=?').run(ticketId)
       const slot = this.slot(ticketId)
       if (slot?.phase === 'waiting') this.release(ticketId,String(slot.assignmentId))

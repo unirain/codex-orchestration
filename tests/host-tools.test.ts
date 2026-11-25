@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { RoleHandlers } from '../src/host/tools.ts'
 import { domainFixture } from './support/domain.ts'
+import { key } from '../src/core/ids.ts'
 import type { ToolContext } from '../src/codex/session.ts'
 
 const hooks = {
@@ -122,4 +123,37 @@ test('Worker can accept or hand back reached human input, but cannot claim it af
   const result=await h.call({...w,tool:'orchestrator_trigger_handback',callId:'back'},{triggerId:'mail',reason:'mail is outside scope'})
   assert.deepEqual(result,{requeued:true})
   await assert.rejects(h.call({...w,callId:'late'},{triggerId:'mail'}),/outside Ticket/)
+})
+
+test('Main can resolve a handed-back authorization from prior user text and replies visible at intake', async t=>{
+  const f=active(); t.after(f.close)
+  const {db,engine,store}=f.d
+  db.exec('CREATE TABLE host_messages(id TEXT PRIMARY KEY,text TEXT NOT NULL,ticket TEXT,kind TEXT NOT NULL)')
+  const save=db.prepare("INSERT INTO host_messages VALUES(?,?,?,'acknowledgement')")
+  f.receive('rule','follow up 要区分理由，比如 3 天没回')
+  engine.reply({purpose:'acknowledgement',ticketId:f.id,triggerId:'rule',text:'使用已有字段，还是新增时间戳？'})
+  await f.d.drain(e=>{ if(e.kind==='send')save.run(e.id,e.message.text,e.message.ticketId??null) })
+  f.receive('agreement','同意')
+  engine.reply({purpose:'acknowledgement',ticketId:f.id,triggerId:'agreement',text:'仍未选字段；当前工单是只读。'})
+  await f.d.drain(e=>{ if(e.kind==='send')save.run(e.id,e.message.text,e.message.ticketId??null) })
+  const cursor=Number(db.prepare('select max(rowid) n from host_messages').get()!.n)
+  f.receive('late-reply','还有另一个可选实现。')
+  const earlier=store.triggers.get('rule')!
+  engine.receive({...earlier,id:'other',text:'different channel',channel:{...earlier.channel!,thread:'other'}})
+  engine.receive({...earlier,id:'approval',text:'授权',meta:{replyCursor:cursor}})
+  save.run(key('ack','late-reply'),'This answer arrived too late',f.id)
+  engine.handback(f.id,'approval','Implementing the rule is outside this read-only assignment.')
+  engine.evaluateDue()
+  f.receive('later','消息之后才有的选择')
+  const evalId=engine.candidate('approval')!.evalId
+  const h=new RoleHandlers(f.d,hooks)
+  const context=await h.call(caller('main',evalId,'orchestrator_read'),{}) as {precedingConversation:{triggerId:string,userText:string,replies:{text:string}[]}[]}
+  const conversation=context.precedingConversation
+  assert.deepEqual(conversation.map(x=>x.triggerId),['origin','rule','agreement','late-reply'])
+  assert.equal(conversation[2].userText,'同意')
+  assert.equal(conversation[2].replies[0].text,'仍未选字段；当前工单是只读。')
+  assert.deepEqual(conversation[3].replies,[])
+  assert.equal(conversation[1].userText,'follow up 要区分理由，比如 3 天没回')
+  assert.equal(conversation[1].replies[0].text,'使用已有字段，还是新增时间戳？')
+  assert.equal(store.tickets.list().length,1)
 })

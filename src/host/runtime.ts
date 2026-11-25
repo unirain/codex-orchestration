@@ -13,6 +13,8 @@ import { deepseekArgs } from '../codex/deepseek.ts'
 import { prepareTicket, openTicketRuntime, reapTicketRuntime } from '../executor/index.ts'
 import type { Workspace } from '../executor/workspace.ts'
 import { observeDispatch } from './reattach.ts'
+import { canRetry } from '../core/stage.ts'
+import { ChatHost } from './chat.ts'
 import { prepareStore, formatVersion } from './storage.ts'
 import { RoleHandlers, MAIN_INSTRUCTIONS, WORKER_INSTRUCTIONS } from './tools.ts'
 import { Supervision } from './supervision.ts'
@@ -67,6 +69,7 @@ export class Host {
   private live = new Map<string, Live>()
   private delivery?: Delivery
   private remote?: GitHub
+  private chat: ChatHost
   private stop = false
   private working?: Promise<void>
   private timer?: NodeJS.Timeout
@@ -99,6 +102,7 @@ export class Host {
       excerptBytes: config.excerptBytes,
       secrets: () => [process.env[config.modelKeyEnv] ?? ''].filter(Boolean),
     })
+    this.chat = new ChatHost(this.domain, this.supervision, config)
     if (config.github) {
       this.remote = new GitHub(config.github)
       this.delivery = new Delivery(db, this.remote, config.repository, config.github.account, {
@@ -127,7 +131,8 @@ export class Host {
       deliver: (id, c, args) => this.deliver(id, c, args as DeliveryRequest),
       mayReportReady: (c, p) => this.ready(c, p),
       pause: (ticket) => {
-        this.supervision.pause(ticket)
+        const question = this.domain.store.tickets.get(ticket)?.attention
+        this.supervision.pause(ticket, question ? 'question:' + question.id : 'system')
         queueMicrotask(() => void this.interrupt(ticket).catch((e) => this.fault(ticket, e)))
       },
     })
@@ -212,10 +217,19 @@ export class Host {
   }
   async command(action: string, b: Record<string, unknown>) {
     if (this.stop) throw Error('Host is stopping')
+    if (action === 'chat-view') return this.chat.view()
+    if (action === 'chat-events') return this.chat.events(b)
+    if (action === 'answer') return this.chat.answer(b)
+    if (action === 'submission') return this.chat.receipt(b)
     if (action === 'say') {
       if (typeof b.id !== 'string' || !b.id || typeof b.text !== 'string' || !b.text.trim())
         throw Error('Expected message and stable ID')
-      this.domain.engine.receive(terminalTrigger(b.id, b.text, this.config.actor))
+      const trigger = terminalTrigger(b.id, b.text, this.config.actor)
+      trigger.meta.replyCursor = this.db.prepare('SELECT coalesce(max(rowid),0) AS cursor FROM host_messages').get()!.cursor
+      const existing = this.domain.store.triggers.get(trigger.id)
+      if (existing && (existing.text !== trigger.text || existing.meta.attentionId))
+        throw Error('发送标识对应的消息不同')
+      this.domain.engine.receive(trigger)
       return { trigger: b.id, thread: 'terminal:default' }
     }
     if (action === 'grant' || action === 'revoke') {
@@ -296,6 +310,7 @@ export class Host {
         }))
       return {
         trigger,
+        ...(trigger.meta.attentionId ? { answerReceipt: this.chat.receipt({id}) } : {}),
         disposition,
         decisions,
         tickets,
@@ -355,8 +370,8 @@ export class Host {
       this.sleeping.delete(id)
       if (!this.db.prepare('SELECT 1 FROM host_recovery WHERE owner=?').get(id)) {
         const report = t.assignments.at(-1)?.report
-        if (report && ['blocked', 'failed'].includes(report.state)) this.domain.engine.retryTicket(id)
-        else
+        if (report && ['blocked', 'failed'].includes(report.state) && canRetry(t)) this.domain.engine.retryTicket(id)
+        else if (!t.undelivered.length)
           this.domain.engine.note(id, 'The operator explicitly resumed this work under its existing mandate.')
       }
       return { resumed: id }
@@ -646,7 +661,7 @@ export class Host {
           summary: 'Remote delivery requires current authorization.',
           question: 'Please verify the bound account and repository authorization before resuming.',
         })
-        this.supervision.pause(t.id)
+        this.supervision.pause(t.id, 'system')
         queueMicrotask(() => void this.interrupt(t.id).catch((reason) => this.fault(t.id, reason)))
       }
       throw e
@@ -767,7 +782,7 @@ export class Host {
         summary: reason,
         question: 'Please check the model or service configuration before resuming.',
       })
-      this.supervision.pause(r.owner)
+      this.supervision.pause(r.owner, 'system')
     }
   }
   private async run(r: Call, live: Live) {
@@ -881,7 +896,11 @@ export class Host {
             : 'event'
       if (!this.supervision.reserve(owner, assignment, reason)) return 'defer'
       const runs = this.supervision.tests(owner)
+      const human = items.find(i => i.kind === 'trigger' && i.human && !i.context)
       text = JSON.stringify({
+        ...(human?.kind === 'trigger' ? {
+          routing: 'Act only on the new inputs below. The original assignment is background when handling a new human message. For a greeting alone, end this turn silently without any tool call or status change. For a request or approval outside your permitted actions, hand back its trigger even if the subject is familiar. Never reply asking the user to change a mandate or reauthorize an already authorized action.',
+        } : {}),
         assignment,
         ticket: owner,
         mandate: t.mandate,
@@ -894,9 +913,11 @@ export class Host {
               .all(owner)
           : [],
         task:
-          effect.kind === 'start'
-            ? 'Begin or recover the authorized assignment.'
-            : 'Decide each new input within the mandate.',
+          items.some((item) => item.kind === 'resumed')
+            ? 'This ended Ticket was woken by a message on its subscription. Assess the incoming text before doing any work; the original request is historical context.'
+            : effect.kind === 'start'
+              ? 'Begin or recover the authorized assignment.'
+              : 'Review each input. A subscription delivers conversation as well as requests. Only take up requests that clearly refer to this mandate.',
         inputs: items,
         recentTests: runs
           .slice(-5)
@@ -934,7 +955,7 @@ export class Host {
             summary: 'Ticket environment could not start.',
             question: 'Correct the recorded executor or service error, then resume this Ticket.',
           })
-          this.supervision.pause(owner)
+          this.supervision.pause(owner, 'system')
         } else if (effect.kind === 'assess') {
           const id = effect.candidate.triggers[0]?.id
           if (id && this.domain.engine.candidate(id)?.evalId === assignment)

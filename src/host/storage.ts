@@ -2,7 +2,7 @@ import { existsSync, chmodSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { randomUUID } from 'node:crypto'
 
-export const formatVersion = 2
+export const formatVersion = 3
 /** Called while holding the host instance lock, before opening any domain or execution tables. */
 export function prepareStore(path: string): string | undefined {
   if (!existsSync(path)) return

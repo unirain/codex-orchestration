@@ -21,9 +21,9 @@ export const roleTools: Record<Role, ToolSpec[]> = {
   worker: [
     tool('orchestrator_report', 'Report progress, outcome or a concrete question within the assigned mandate.',
       { state: { enum: ['progress', 'waiting', 'ready', 'blocked', 'failed', 'dropped'] }, summary: string, pr: integer, question: string }, ['state', 'summary']),
-    tool('orchestrator_ack', 'Acknowledge an in-scope follow-up, optionally with an answer.',
+    tool('orchestrator_ack', 'Acknowledge a request clearly about this ticket, optionally with an answer. Leave ordinary discussion unanswered.',
       { triggerId: string, answer: string }, ['triggerId']),
-    tool('orchestrator_trigger_handback', 'Return an out-of-scope user trigger unchanged to the host.',
+    tool('orchestrator_trigger_handback', 'Return the original request when it requires broader authority (including approval to edit after a read-only task), concerns another goal, or has unclear ownership.',
       { triggerId: string, reason: string }, ['triggerId', 'reason']),
     tool('orchestrator_deliver', 'Request a host-authorized remote delivery step for this ticket.',
       { operation: { enum: ['push', 'create', 'update'] }, commit: string, pr: integer, title: string, body: string, draft: {type:'boolean'} }, ['operation']),

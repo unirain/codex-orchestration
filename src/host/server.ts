@@ -116,6 +116,7 @@ export async function connect(dir: string, repo: string): Promise<Endpoint | und
     /* The daemon may still be starting or may have released its lock. */
   }
 }
+export class HostRejection extends Error {}
 export async function invoke(i: Endpoint, action: string, body: Record<string, unknown>) {
   const r = await fetch(i.url + '/' + action, {
     method: 'POST',
@@ -125,6 +126,6 @@ export async function invoke(i: Endpoint, action: string, body: Record<string, u
     signal: AbortSignal.timeout(120000),
   })
   const value = await r.json()
-  if (!r.ok) throw Error(value.error ?? 'Local host request failed')
+  if (!r.ok) throw new HostRejection(value.error ?? 'Local host request failed')
   return value
 }
