@@ -2,10 +2,12 @@
 import http from 'node:http'
 import https from 'node:https'
 import net from 'node:net'
-import { chmodSync, chownSync } from 'node:fs'
+import { chmodSync, chownSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { timingSafeEqual } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
+import { createServer as tlsServer } from 'node:tls'
+import { makeCertificates } from './ticket-ca.mjs'
 
 export function authority(raw) {
   if (typeof raw !== 'string' || !/^(?:[a-z\d-]+\.)*[a-z\d-]+:[1-9]\d{0,4}$/i.test(raw)) throw new Error('expected exact hostname:port')
@@ -37,7 +39,7 @@ function forward(req,res,url,options={}) {
   res.once('close',()=>remote.destroy())
   req.pipe(remote)
 }
-export function makeProxy(allowed,onDenied) {
+export function makeProxy(allowed,onDenied,contexts=new Map(),upstreamOptions={}) {
   const allow=new Set(allowed.map(authority))
   function permits(key) {
     if (allow.has(key)) return true
@@ -57,12 +59,38 @@ export function makeProxy(allowed,onDenied) {
       const key=authority(req.url)
       if(!permits(key)) {socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return}
       const [host,port]=key.split(':')
-      const upstream=net.connect({host,port:Number(port)},()=>{
-        socket.write('HTTP/1.1 200 Connection Established\r\n\r\n')
-        if(head.length) upstream.write(head)
-        bridge(socket,upstream)
+      const context=contexts.get(host)
+      if(!context){socket.end('HTTP/1.1 502 Unavailable\r\n\r\n');return}
+      // CONNECT grants an exact HTTPS authority. Terminate TLS here so a
+      // redirected request, an origin switch or a reused connection cannot
+      // silently contact an unchecked destination behind the same tunnel.
+      socket.write('HTTP/1.1 200 Connection Established\r\n\r\n')
+      if(head.length)socket.unshift(head)
+      const requestServer=scheme=>http.createServer((inner,reply)=>{
+        const origin=new URL(scheme+'://'+host+':'+port)
+        try {
+          if(!inner.headers.host || !inner.url.startsWith('/') || inner.url.startsWith('//'))return rejectRequest(reply,400)
+          const declared=new URL(scheme+'://'+inner.headers.host)
+          const dest=new URL(inner.url,origin)
+          if(declared.username || declared.password || targetOf(declared)!==key || targetOf(dest)!==key){
+            onDenied(targetOf(declared));return rejectRequest(reply,403)
+          }
+          forward(inner,reply,dest,upstreamOptions)
+        }catch{rejectRequest(reply,400)}
       })
-      upstream.once('error',()=>socket.destroy());socket.once('error',()=>upstream.destroy())
+      const transport=tlsServer({...context,ALPNProtocols:['http/1.1']},secure=>{
+        secure.on('error',()=>secure.destroy())
+        if(secure.servername && secure.servername.toLowerCase()!==host){onDenied(secure.servername+':'+port);secure.destroy();return}
+        requestServer('https').emit('connection',secure)
+      })
+      transport.on('tlsClientError',(_err,connection)=>connection.destroy())
+      // npm can also send plain HTTP/1.1 through CONNECT for an http package URL.
+      // Parse that request at this same authority boundary instead of opening a raw tunnel.
+      socket.once('data',chunk=>{
+        socket.pause();socket.unshift(chunk)
+        if(chunk[0]===22) transport.emit('connection',socket)
+        else {requestServer('http').emit('connection',socket);socket.resume()}
+      })
     } catch { socket.end('HTTP/1.1 400 Bad Request\r\n\r\n') }
   })
   return s
@@ -84,7 +112,9 @@ async function start() {
       forward(req,res,dest)
     })
     await listenUnix(model,'/relay/model.sock',serviceUid,0o600)
-    await listenUnix(makeProxy(allow,denied=>console.log(JSON.stringify({denied}))),'/relay/repo.sock',0,0o666)
+    const certificates=makeCertificates('/ca',allow.map(k=>authority(k).split(':')[0]))
+    writeFileSync('/relay/ca.pem',certificates.publicCa,{mode:0o444})
+    await listenUnix(makeProxy(allow,denied=>console.log(JSON.stringify({denied})),certificates.contexts),'/relay/repo.sock',0,0o666)
   } else if(process.argv[2]==='local'){
     const secret=await readFile('/private/proxy-token','utf8')
     const token=Buffer.from('Bearer '+secret)

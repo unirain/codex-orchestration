@@ -40,6 +40,22 @@ async function prepare(o: PrepareOptions, root: string): Promise<Workspace> {
   const stat = await statOrNull(dir)
   if (await statOrNull(metadata)) {
     const saved = JSON.parse(await readFile(metadata, 'utf8'))
+    if (!stat && saved.repo === repository && saved.workspace.ticketId === o.ticketId) {
+      const record = saved.workspace as Workspace
+      let history = 'no Git checkpoint was recorded'
+      if (record.gitDir && record.branch && record.gitDir.startsWith(await realpath(root) + '/')) {
+        try {
+          const current = await checked('git',['-c','core.hooksPath=/dev/null','--git-dir',record.gitDir,
+            'rev-parse','--verify','refs/heads/'+record.branch+'^{commit}'],{cwd:root,env:{
+              PATH:process.env.PATH,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null',GIT_TERMINAL_PROMPT:'0'
+            }})
+          history = 'verified branch '+record.branch+' at commit '+current
+        } catch {
+          history = 'could not verify saved branch '+record.branch+' (recorded baseline '+record.baseCommit+')'
+        }
+      }
+      throw Error('Ticket workspace missing; '+history+'; previous uncommitted changes cannot be verified')
+    }
     if (!stat?.isDirectory() || saved.repo !== repository || saved.workspace.ticketId !== o.ticketId ||
         saved.workspace.directory !== dir || stat.dev.toString() !== saved.dev || stat.ino.toString() !== saved.ino) {
       throw new Error('Ticket workspace missing or ownership changed; check the recorded branch and local work')

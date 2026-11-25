@@ -14,6 +14,7 @@ const repoEnv=[
   '-e','HOME=/tmp/project','-e','CODEX_HOME=/tmp/project/codex',
   ...['http_proxy','https_proxy','HTTP_PROXY','HTTPS_PROXY'].flatMap(key=>['-e',key+'='+localProxy]),
   '-e','NO_PROXY=','-e','no_proxy=',
+  ...['CURL_CA_BUNDLE','REQUESTS_CA_BUNDLE','NODE_EXTRA_CA_CERTS','SSL_CERT_FILE','GIT_SSL_CAINFO'].flatMap(k=>['-e',k+'=/relay/ca.pem']),
 ]
 export interface RuntimeOptions {
   workspace: Workspace; stateDir: string; image: string; apiKey: string; allow?: string[];
@@ -111,7 +112,7 @@ async function createRuntime(opts: RuntimeOptions) {
   const close=async()=>{await reap()}
   try {
     await docker(['run','-d','--pull=never','--name',side,...limits,'--user','0:0','--cap-add','CHOWN',
-      '--mount',`type=volume,src=${relay},dst=/relay`,...bind(helperDir,'/opt/orch',true),
+      '--tmpfs','/ca:rw,nosuid,nodev,noexec,mode=0700','--mount',`type=volume,src=${relay},dst=/relay`,...bind(helperDir,'/opt/orch',true),
       '--entrypoint','node',info.Id,'/opt/orch/proxy.mjs','outbound',JSON.stringify({allow,providerBaseUrl:provider.href,serviceUid:Number(gatewayUid)})])
     await docker(['run','-d','--pull=never','--name',name,...limits,'--network','none',
       '--user','0:0','--cap-add','CHOWN','--cap-add','DAC_OVERRIDE','--cap-add','FOWNER',
