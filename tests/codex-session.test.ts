@@ -11,12 +11,16 @@ let specs,turnPolicy,replies=[],serial=0
 const req=(id,tool,overrides={})=>out({id,method:'item/tool/call',params:{threadId:'thread1',turnId:'turn'+serial,callId:'call',namespace:null,tool,arguments:{summary:'test',state:'ready'},...overrides}})
 rl.on('line',l=>{
  const {method,id,params,result,error}=JSON.parse(l)
- if(!method){replies.push({id,result,error}); if(replies.length===6)out({method:'turn/completed',params:{threadId:'thread1',turn:{id:'turn'+serial,status:'completed'}}});return}
+ if(!method){replies.push({id,result,error}); if(replies.length===6 || process.env.SCENARIO==='old'&&replies.length===2)out({method:'turn/completed',params:{threadId:'thread1',turn:{id:'turn'+serial,status:'completed'}}});return}
  if(method==='initialize')out({id,result:{userAgent:'codex-orchestration/'+(process.env.FIXTURE_VERSION||'0.171.0')+' (fixture)'}})
  if(method==='thread/start'){specs=params;out({id,result:{thread:{id:'thread1',status:{type:'idle'}},model:params.model||'default-model'}})}
  if(method==='thread/read')out({id,result:{thread:{id:'thread1',specs,replies,turnPolicy}}})
  if(method==='turn/start'){
   serial++;turnPolicy=params.sandboxPolicy;if(process.env.SCENARIO==='disconnect')return process.exit(0)
+  if(process.env.SCENARIO==='old'){
+   req(301,'orchestrator_report',{turnId:'old-turn',callId:'saved'})
+   req(302,'orchestrator_report',{turnId:'old-turn',callId:'absent'})
+  }
   if(process.env.SCENARIO==='calls'){
    req(201,'orchestrator_report');req(202,'orchestrator_report')
    req(203,'orchestrator_route')
@@ -98,4 +102,20 @@ test('only a Worker launched inside its verified boundary selects externalSandbo
 test('Main rejects a build with an unverified host-side tool catalog at initialize',async ()=>{
   await assert.rejects(CodexSession.connect({command:process.execPath,args:['-e',fixture],
     env:{FIXTURE_VERSION:'0.137.0'},role:'main',onTool:async()=>null}),/tested Codex.*0.137.0/)
+})
+
+test('callbacks for an earlier turn may only read an exact persistent receipt',async t=>{
+  let started=0
+  const s=await CodexSession.connect({command:process.execPath,args:['-e',fixture],env:{SCENARIO:'old'},role:'worker',ticketId:'mail',
+    onTool:async()=>{started++;throw Error('Unexpected write')},
+    onReplay:(ctx,args)=>ctx.callId==='saved' && ctx.threadId==='thread1' && ctx.turnId==='old-turn' &&
+      ctx.ticketId==='mail' && args.summary==='test' ? {value:'original response'} : undefined})
+  t.after(()=>s.close())
+  await s.startThread({cwd:'/workspace'})
+  const {turnId}=await s.startTurn({assignmentId:'current',text:'continue'})
+  await s.waitForCompletion(turnId)
+  const responses=(await s.readThread()).replies as {id:number,result:{success:boolean,contentItems:{text:string}[]}}[]
+  assert.deepEqual(responses.sort((a,b)=>a.id-b.id).map(x=>[x.result.success,x.result.contentItems[0].text]),
+    [[true,'original response'],[false,'Stale or paused assignment']])
+  assert.equal(started,0)
 })
