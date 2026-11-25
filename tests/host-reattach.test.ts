@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { once } from 'node:events'
+import { openMainTransport } from '../src/codex/main-transport.ts'
+import { CodexSession, ConnectionLost } from '../src/codex/session.ts'
 import { key } from '../src/core/ids.ts'
 import { observeDispatch } from '../src/host/reattach.ts'
 import type { Completion } from '../src/codex/session.ts'
@@ -78,16 +81,12 @@ test('wrong thread, duplicate markers, unbound active turn or incomplete view bl
 test('AC-018 real service: dropped turn/start acknowledgement reattaches to the live turn', {
   skip: !process.env.CODEX_TEST_BIN, timeout: 30_000,
 }, async t=>{
-  const {spawn} = await import('node:child_process')
   const {mkdtemp, mkdir, writeFile, rm} = await import('node:fs/promises')
   const {join} = await import('node:path')
   const {createServer} = await import('node:http')
-  const {once} = await import('node:events')
-  const {setTimeout:delay} = await import('node:timers/promises')
-  const {CodexSession,ConnectionLost} = await import('../src/codex/session.ts')
   const root=await mkdtemp('/tmp/reattach-')
   const cwd=join(root,'workspace'), state=join(root,'state')
-  await Promise.all([mkdir(cwd),mkdir(state)])
+  await Promise.all([mkdir(cwd,{mode:0o700}),mkdir(state,{mode:0o700})])
   const env={HOME:root,CODEX_HOME:state,PATH:process.env.PATH,TMPDIR:root}
   const bin=process.env.CODEX_TEST_BIN!
   const received=Promise.withResolvers<void>(), finish=Promise.withResolvers<void>()
@@ -110,52 +109,39 @@ test('AC-018 real service: dropped turn/start acknowledgement reattaches to the 
     'model="gpt-5.4"','model_provider="fixture"','[model_providers.fixture]','name="isolated test"',
     'base_url="http://127.0.0.1:'+port+'/v1"','wire_api="responses"','request_max_retries=0','stream_max_retries=0','supports_websockets=false',
   ].join('\n'))
-  const reserve=createServer()
-  reserve.listen(0,'127.0.0.1');await once(reserve,'listening')
-  const address='ws://127.0.0.1:'+(reserve.address() as {port:number}).port
-  await new Promise<void>(resolve=>reserve.close(()=>resolve()))
-  const token=join(root,'cap')
-  await writeFile(token,(await import('node:crypto')).randomBytes(32).toString('hex'),{mode:0o600})
-  const service=spawn(bin,['app-server','--listen',address,'--ws-auth','capability-token','--ws-token-file',token],{env,cwd,stdio:'ignore'})
-  const closed=once(service,'close')
-  const clients: InstanceType<typeof CodexSession>[]=[]
+  const service=await openMainTransport({bin,args:['app-server','--stdio'],cwd,env})
+  const clients: CodexSession[]=[]
   t.after(async()=>{
     finish.resolve()
     await Promise.all(clients.map(c=>c.close()))
-    service.kill()
-    await closed
+    await service.close()
     provider.closeAllConnections();provider.close()
     await rm(root,{recursive:true,force:true,maxRetries:3})
   })
-  for(let n=0;n<100;n++){
-    if(await fetch(address.replace('ws:','http:')+'/readyz').then(()=>true,()=>false))break
-    await delay(25)
-  }
   const h=fixture();t.after(h.close)
-  const bridge=`
-    const {createInterface}=require('node:readline'),{readFileSync}=require('node:fs')
-    const [endpoint,file,mode]=process.argv.slice(1)
-    const ws=new WebSocket(endpoint,{headers:{Authorization:'Bearer '+readFileSync(file,'utf8')}})
-    ws.addEventListener('error',()=>process.exit(2));ws.addEventListener('close',()=>process.exit(0))
+  // Discard the real server acknowledgement, then tear down its disposable
+  // bridge. No observer client remains connected during the fault.
+  const lostAck=`
+    const {spawn}=require('node:child_process'),{createInterface}=require('node:readline')
+    const p=spawn(process.execPath,process.argv.slice(1),{stdio:['pipe','pipe','ignore']})
     let drop
-    ws.addEventListener('open',()=>createInterface({input:process.stdin}).on('line',line=>{
-      const m=JSON.parse(line);if(mode==='drop'&&m.method==='turn/start')drop=m.id
-      ws.send(line)
-    }))
-    ws.addEventListener('message',({data})=>{
-      const m=JSON.parse(data)
-      if(drop!==undefined&&m.id===drop&&m.result?.turn)process.exit(0)
-      process.stdout.write(data+'\\n')
+    createInterface({input:process.stdin}).on('line',line=>{
+      const m=JSON.parse(line);if(m.method==='turn/start')drop=m.id;p.stdin.write(line+'\\n')
     })
+    createInterface({input:p.stdout}).on('line',line=>{
+      const m=JSON.parse(line);if(drop!==undefined&&m.id===drop&&m.result?.turn){p.kill();process.exit(0)}
+      process.stdout.write(line+'\\n')
+    })
+    p.on('close',()=>process.exit(0))
   `
   const basic={env,cwd,role:'worker' as const,ticketId:h.owner,onTool:async()=>{throw Error('No tools expected')}}
-  const first=await CodexSession.connect({...basic,command:process.execPath,args:['-e',bridge,address,token,'drop']})
+  const first=await CodexSession.connect({...basic,...service.descriptor,args:['-e',lostAck,...service.descriptor.args]})
   clients.push(first)
   const {threadId}=await first.startThread({cwd})
   h.d.db.prepare('UPDATE host_sessions SET thread=? WHERE owner=?').run(threadId,h.owner)
   await assert.rejects(first.startTurn({assignmentId:h.assignment,inputId:key('turn-input','call','0'),text:'Say done'}),ConnectionLost)
   await received.promise
-  const second=await CodexSession.connect({...basic,command:process.execPath,args:['-e',bridge,address,token,'normal']})
+  const second=await CodexSession.connect({...basic,...service.descriptor})
   clients.push(second)
   const history=await second.readThread(threadId,true)
   const turns=history.turns as {id:string,status:string}[]
