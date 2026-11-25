@@ -33,6 +33,10 @@ test('Main binds commands to the actual batch and replays a successful receipt e
   const result=await handlers.call(ctx,args) as {ticketId:string}
   const replay=await new RoleHandlers(f.d,{...hooks,valid:()=>false}).call(ctx,args)
   assert.deepEqual(replay,result)
+  const reconnected = new RoleHandlers(f.d,{...hooks,valid:()=>false})
+  assert.deepEqual(reconnected.replay(ctx,args),{value:result})
+  assert.equal(reconnected.replay({...ctx,ticketId:'foreign'},args),undefined)
+  assert.equal(reconnected.replay(ctx,{...args,scope:'changed'}),undefined)
   assert.ok(result.ticketId)
   assert.equal(f.d.store.tickets.list().length,1)
   await assert.rejects(handlers.call(ctx,{...args,scope:'other'}),/Conflicting callback/)

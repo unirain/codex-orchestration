@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import type { Domain } from '../domain.ts'
 import { followupOwners, runningAssignment } from '../core/model.ts'
 import type { ReportState } from '../core/model.ts'
-import type { ToolContext } from '../codex/session.ts'
+import type { ReplayContext, SavedReply, ToolContext } from '../codex/session.ts'
 
 type Args = Record<string, unknown>
 type HookOptions = {
@@ -46,7 +46,15 @@ export class RoleHandlers {
     this.hooks = hooks
     domain.db.exec(`CREATE TABLE IF NOT EXISTS tool_receipts (
       id TEXT PRIMARY KEY, digest TEXT NOT NULL, response TEXT
-    )`)
+    );
+    CREATE TABLE IF NOT EXISTS tool_receipt_assignments(id TEXT PRIMARY KEY, assignment TEXT NOT NULL)`)
+  }
+
+  replay(ctx: ReplayContext, args: Args): SavedReply | undefined {
+    const id = JSON.stringify([ctx.threadId,ctx.turnId,ctx.callId])
+    const row = this.domain.db.prepare('SELECT digest,response,assignment FROM tool_receipts JOIN tool_receipt_assignments USING(id) WHERE id=? AND response IS NOT NULL').get(id)
+    if (!row || signature({...ctx,assignmentId:String(row.assignment)},args) !== row.digest) return
+    return {value:JSON.parse(String(row.response))}
   }
 
   /** Binds callers exclusively from the transport. A replay can recover its old
@@ -88,6 +96,7 @@ export class RoleHandlers {
       const encoded = JSON.stringify(value ?? null)
       db.prepare('INSERT INTO tool_receipts VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET response=excluded.response')
         .run(id,digest,encoded)
+      db.prepare('INSERT OR IGNORE INTO tool_receipt_assignments VALUES(?,?)').run(id,ctx.assignmentId)
       return JSON.parse(encoded)
     }
     if (ctx.role === 'worker' && ['orchestrator_test','orchestrator_deliver'].includes(ctx.tool)) {

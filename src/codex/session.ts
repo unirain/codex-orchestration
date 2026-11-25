@@ -16,6 +16,9 @@ export interface ToolContext {
   tool: string
 }
 
+export type ReplayContext = Omit<ToolContext,'assignmentId'>
+export interface SavedReply { value: unknown }
+
 export type TurnStatus = 'completed' | 'failed' | 'interrupted'
 export interface Completion {
   type: 'completed'
@@ -41,6 +44,8 @@ export interface SessionOptions extends ProcessOptions {
   /** The host validates the current Assignment and commits a durable, idempotent
    * result, keyed by threadId + turnId + callId, before returning. */
   onTool(context: ToolContext, args: ObjectValue): Promise<unknown>
+  /** Read-only lookup for known, completed calls from an earlier connection. */
+  onReplay?(context: ReplayContext, args: ObjectValue): Promise<SavedReply | undefined> | SavedReply | undefined
   /** Synchronous binding/receipt persistence before subsequent callbacks. */
   onEvent?(event: SessionEvent): void
 }
@@ -123,6 +128,13 @@ export class CodexSession {
         clientInfo: { name: 'codex-orchestration', title: 'Local ticket orchestrator', version: '0.1' },
         capabilities: { experimentalApi: true },
       }))
+      // The Main runs on the host. Verify the build whose actual provider tool
+      // catalog passed our main-only capabilities test, before opening a thread.
+      if (options.role === 'main') {
+        const agent = session.initialized.userAgent
+        const version = typeof agent === 'string' ? /^codex-orchestration\/(\d+\.\d+\.\d+)(?:\s|$)/.exec(agent)?.[1] : undefined
+        if (version !== '0.171.0') throw new Error('Main requires tested Codex App Server 0.171.0; found ' + (version ?? 'unidentified build'))
+      }
       session.rpc.notify('initialized')
       return session
     } catch (error) {
@@ -277,10 +289,13 @@ export class CodexSession {
     const signature = JSON.stringify([tool, args])
     const previous = this.calls.get(key)
     if (previous) return previous.signature === signature ? previous.result : reply('Conflicting repeated tool call', false)
-    if (this.disconnected || !this.binding || this.binding.turnId !== turnId || this.binding.frozen)
-      return reply('Stale or paused assignment', false)
-    const ctx: ToolContext = { role: this.options.role, ticketId: this.options.ticketId,
-      assignmentId: this.binding.assignmentId, threadId: this.threadId, turnId, callId, tool }
+    const identity: ReplayContext = { role: this.options.role, ticketId: this.options.ticketId,
+      threadId: this.threadId, turnId, callId, tool }
+    if (this.disconnected || !this.binding || this.binding.turnId !== turnId || this.binding.frozen) {
+      const previous = await this.options.onReplay?.(identity,args)
+      return previous ? reply(previous.value,true) : reply('Stale or paused assignment', false)
+    }
+    const ctx: ToolContext = { ...identity, assignmentId: this.binding.assignmentId }
     const result = Promise.resolve().then(() => this.options.onTool(ctx, args)).then(value => reply(value, true),
       () => reply('Host rejected the tool call; consult the ticket status.', false))
     this.calls.set(key, {signature, result})

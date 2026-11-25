@@ -12,7 +12,7 @@ const req=(id,tool,overrides={})=>out({id,method:'item/tool/call',params:{thread
 rl.on('line',l=>{
  const {method,id,params,result,error}=JSON.parse(l)
  if(!method){replies.push({id,result,error}); if(replies.length===6)out({method:'turn/completed',params:{threadId:'thread1',turn:{id:'turn'+serial,status:'completed'}}});return}
- if(method==='initialize')out({id,result:{userAgent:'test'}})
+ if(method==='initialize')out({id,result:{userAgent:'codex-orchestration/'+(process.env.FIXTURE_VERSION||'0.171.0')+' (fixture)'}})
  if(method==='thread/start'){specs=params;out({id,result:{thread:{id:'thread1',status:{type:'idle'}},model:params.model||'default-model'}})}
  if(method==='thread/read')out({id,result:{thread:{id:'thread1',specs,replies,turnPolicy}}})
  if(method==='turn/start'){
@@ -93,4 +93,9 @@ test('only a Worker launched inside its verified boundary selects externalSandbo
   await session.startThread({cwd:'/workspace'})
   await session.startTurn({assignmentId:'active',text:'test'})
   assert.deepEqual((await session.readThread()).turnPolicy,{type:'externalSandbox',networkAccess:'enabled'})
+})
+
+test('Main rejects a build with an unverified host-side tool catalog at initialize',async ()=>{
+  await assert.rejects(CodexSession.connect({command:process.execPath,args:['-e',fixture],
+    env:{FIXTURE_VERSION:'0.137.0'},role:'main',onTool:async()=>null}),/tested Codex.*0.137.0/)
 })
