@@ -1,6 +1,6 @@
 # Operator-owned build context, prepared before binding a repository. Include the
 # matching official @openai/codex Linux package as codex.tgz in this context.
-ARG BASE_IMAGE
+ARG BASE_IMAGE=node:25.9.0
 FROM ${BASE_IMAGE}
 USER root
 COPY codex.tgz /tmp/codex.tgz
