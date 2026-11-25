@@ -30,7 +30,8 @@ async function main() {
   const local = endpoint === 'repos/'+repo || endpoint?.startsWith('repos/'+repo+'/')
   const ready = args.length === 5 && args[0] === 'pr' && args[1] === 'ready' && /^\d+$/.test(args[2]) && args[3] === '--repo' && args[4] === repo
   const helper = args.length === 3 && args[0] === 'auth' && args[1] === 'git-credential' && ['get','store','erase'].includes(args[2])
-  check((api && (local || endpoint === 'user' || args.includes('rate_limit'))) || ready || helper,'Unexpected acceptance command')
+  const apiRead = endpoint === 'user' && args.length === 4 || endpoint === '-i' && args.length === 5 && args[4] === 'rate_limit'
+  check((api && (local || apiRead)) || ready || helper,'Unexpected acceptance command')
   const isCreate = api && endpoint === 'repos/'+repo+'/pulls' && args.includes('--method') && args[args.indexOf('--method')+1] === 'POST'
   let target
   if (isCreate) {
