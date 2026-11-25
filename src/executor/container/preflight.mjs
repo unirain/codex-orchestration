@@ -2,7 +2,7 @@
 // HOME, executable and configuration as the production control connection.
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline'
-const proc = spawn('node', ['/opt/orch/app.mjs'], { stdio: ['pipe', 'pipe', 'ignore'] })
+const proc = spawn('node', ['/opt/orch/control.mjs'], { stdio: ['pipe', 'pipe', 'ignore'] })
 const lines = createInterface({ input: proc.stdout })
 const pending = new Map()
 let id = 0

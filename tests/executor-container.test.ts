@@ -38,7 +38,7 @@ test(
     await writeFile(join(b.directory, 'b-only'), 'ticket-b')
     await symlink(join(b.directory, 'b-only'), join(a.directory, 'foreign'))
     const result = await ra.runTest(
-      'set -eu; test -z "${TICKET_MODEL_LEASE:-}"; test ! -r /private/provider-key; test ! -r /service/proxy-token; test ! -r /relay/model.sock; test ! -r /workspace/foreign; test ! -S /var/run/docker.sock; test -z "$(ls -A /sys/class/net | grep -v ^lo$)"; echo revised > /workspace/only-a',
+      'set -eu; test -z "${TICKET_MODEL_LEASE:-}"; test ! -r /private/provider-key; test ! -r /service/proxy-token; test ! -r /service/app-cap; test ! -r /relay/model.sock; test ! -r /workspace/foreign; test ! -S /var/run/docker.sock; test -z "$(ls -A /sys/class/net | grep -v ^lo$)"; echo revised > /workspace/only-a',
     )
     assert.equal(result.code, 0, result.output)
     assert.equal(await readFile(join(a.directory, 'only-a'), 'utf8'), 'revised\n')
@@ -48,6 +48,10 @@ test(
     assert.deepEqual(await ra.deniedTargets(), ['denied.example:80'])
     const provider = await ra.runTest('curl -sS -w "%{http_code}" -x "" http://127.0.0.1:4021/models')
     assert.match(provider.output, /403$/)
+    const control = await ra.runTest(
+      'curl -x "" -s --max-time 2 -o /dev/null -w "%{http_code}" -H "Upgrade: websocket" -H "Connection: Upgrade" -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: YWJjZGVmZ2hpamtsbW5vcA==" http://127.0.0.1:4023/',
+    )
+    assert.match(control.output, /^(401|403)$/)
     const abort = new AbortController()
     const testRun = ra.runTest(
       "setsid sh -c 'sleep 2; touch /workspace/detached-late' & sleep 2; touch /workspace/late",
@@ -95,7 +99,7 @@ test(
     let previous: string | undefined
     const proof = join(workspace.directory, 'proof')
     const marker = randomUUID()
-    const firstExpected = String(process.getuid()) + ':' + marker
+    const firstExpected = String(process.getuid?.() ?? 'unsupported') + ':' + marker
     // The model sees only the script name. The file is emitted by the command
     // after checking its actual Linux identity and the credential boundary.
     await writeFile(
@@ -204,7 +208,7 @@ test(
       'exec',
       '-d',
       '--user',
-      String(process.getuid()),
+      String(process.getuid?.() ?? 'unsupported'),
       name,
       'sh',
       '-c',
@@ -298,6 +302,107 @@ test(
       assert.match(await checked('docker', ['logs', remote]), /second registry received/)
     } finally {
       await r.close()
+    }
+  },
+)
+
+test(
+  'DeepSeek turn remains active across a dropped protected control connection, executing its input once',
+  { skip: !image || process.env.ORCH_DEEPSEEK_LIVE !== '1', timeout: 120000 },
+  async (t) => {
+    const apiKey = process.env.DEEPSEEK_API_KEY
+    assert.ok(apiKey)
+    const { CodexSession } = await import('../src/codex/session.ts')
+    const { setTimeout: delay } = await import('node:timers/promises')
+    const stateDir = await mkdtemp(join(homedir(), '.orch-reconnect-eval-'))
+    const workspace = await prepareTicket({ stateDir, repoDir: stateDir, ticketId: 'reconnect' })
+    const name = 'orch-ticket-' + ticketKey((await realpath(stateDir)) + '\0reconnect').slice(0, 28)
+    const runtime = await openTicketRuntime({
+      workspace,
+      stateDir,
+      image: image!,
+      apiKey,
+      providerBaseUrl: 'https://api.deepseek.com',
+    })
+    t.after(async () => {
+      await runtime.close()
+      await checked('docker', ['volume', 'rm', name + '-history'])
+      await rm(stateDir, { recursive: true, force: true })
+    })
+    const connect = () =>
+      CodexSession.connect({
+        ...runtime.appServer(),
+        role: 'worker',
+        ticketId: 'reconnect',
+        tools: [],
+        onTool: async () => {
+          throw Error('unexpected dynamic tool')
+        },
+      })
+    await writeFile(
+      join(workspace.directory, 'proof.sh'),
+      "set -eu\nprintf 'once\\n' >> /workspace/starts\nsleep 6\nprintf 'done\\n' >> /workspace/ends\n",
+    )
+    const first = await connect()
+    let threadId: string, turnId: string
+    try {
+      const thread = await first.startThread({ cwd: '/workspace', model: 'deepseek-flash' })
+      threadId = thread.threadId
+      const turn = await first.startTurn({
+        assignmentId: 'original',
+        inputId: 'once-only',
+        text: 'Execute /bin/sh /workspace/proof.sh once using the built-in shell. Wait until its exit; report completion.',
+      })
+      turnId = turn.turnId
+      let started = false
+      for (let i = 0; i < 250 && !started; i++) {
+        started = await readFile(join(workspace.directory, 'starts'), 'utf8').then(
+          (s) => s === 'once\n',
+          () => false,
+        )
+        if (!started) await delay(100)
+      }
+      assert.ok(started)
+      // End only the currently authenticated transport. The server, exec-server,
+      // original shell and its external model turn remain in the same container.
+      const disconnect = `
+import glob,os,signal
+clients=[]
+for f in glob.glob('/proc/[0-9]*/cmdline'):
+ try:
+  if open(f,'rb').read().split(b'\\0')[:2] == [b'node',b'/opt/orch/control.mjs']: clients.append(int(f.split('/')[2]))
+ except (FileNotFoundError, PermissionError, ProcessLookupError): pass
+if len(clients)!=1: raise RuntimeError("expected one live proxy")
+os.kill(clients[0],signal.SIGTERM)
+`
+      await checked('docker', ['exec', '--user', '61000', name, 'python3', '-I', '-c', disconnect])
+    } finally {
+      await first.close()
+    }
+    const second = await connect()
+    try {
+      const inFlight = await second.readThread(threadId)
+      assert.ok(
+        (inFlight.turns as Array<{ id: string; status: string }>).some(
+          (turn) => turn.id === turnId && turn.status === 'inProgress',
+        ),
+      )
+      await second.resumeThread({
+        cwd: '/workspace',
+        model: 'deepseek-flash',
+        threadId,
+        active: { turnId, assignmentId: 'original' },
+      })
+      assert.equal((await second.waitForCompletion(turnId)).status, 'completed')
+      const final = await second.readThread(threadId)
+      assert.deepEqual(
+        (final.turns as Array<{ id: string }>).map((turn) => turn.id),
+        [turnId],
+      )
+      assert.equal(await readFile(join(workspace.directory, 'starts'), 'utf8'), 'once\n')
+      assert.equal(await readFile(join(workspace.directory, 'ends'), 'utf8'), 'done\n')
+    } finally {
+      await second.close()
     }
   },
 )

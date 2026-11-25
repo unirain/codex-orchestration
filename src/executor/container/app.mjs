@@ -5,7 +5,11 @@ import { spawn } from 'node:child_process'
 const args = [
   'app-server',
   '--listen',
-  'stdio://',
+  'ws://127.0.0.1:4023',
+  '--ws-auth',
+  'capability-token',
+  '--ws-token-file',
+  '/service/app-cap',
   '-c',
   'model_provider="ticket"',
   '-c',

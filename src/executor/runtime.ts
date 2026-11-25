@@ -307,6 +307,7 @@ async function createRuntime(opts: RuntimeOptions) {
     await secretFile(gatewayUid, '/private/provider-key', opts.apiKey)
     await secretFile(gatewayUid, '/private/proxy-token', token)
     await secretFile(serviceUid, '/service/proxy-token', token)
+    await secretFile(serviceUid, '/service/app-cap', randomBytes(32).toString('hex'))
     await docker(['exec', '-d', '--user', gatewayUid, name, 'node', '/opt/orch/proxy.mjs', 'local'])
     const codexVersion = await docker(workerBin(['codex', '--version'], uid))
     await docker([
@@ -331,6 +332,10 @@ async function createRuntime(opts: RuntimeOptions) {
       if (!ready) await delay(100)
     }
     if (!ready) throw Error('Ticket exec-server or egress relay unavailable: ' + codexVersion)
+    await docker(['exec', '-d', '--user', serviceUid, '-w', '/history', name, 'node', '/opt/orch/app.mjs'])
+    const waitForControl =
+      'const n=require("node:net");let tries=0;function check(){const s=n.connect(4023,"127.0.0.1",()=>s.end());s.on("error",()=>++tries<100?setTimeout(check,50):process.exit(1))}check()'
+    await docker(workerBin(['node', '-e', waitForControl], serviceUid))
     await docker(workerBin(['node', '/opt/orch/preflight.mjs'], serviceUid))
     return {
       imageId: info.Id as string,
@@ -338,7 +343,7 @@ async function createRuntime(opts: RuntimeOptions) {
       appServer: () => ({
         externallySandboxed: true as const,
         command: bin,
-        args: ['exec', '-i', '--user', serviceUid, '-w', '/history', name, 'node', '/opt/orch/app.mjs'],
+        args: ['exec', '-i', '--user', serviceUid, '-w', '/history', name, 'node', '/opt/orch/control.mjs'],
         env,
       }),
       runTest: async (command: string, signal?: AbortSignal) => {
