@@ -7,6 +7,7 @@ import type {Ticket} from '../core/model.ts'
 import type {Config} from './config.ts'
 import {CodexSession,ConnectionLost} from '../codex/session.ts'
 import type {ToolContext,SessionEvent} from '../codex/session.ts'
+import {intervals,retryable} from '../codex/retry.ts'
 import {deepseekArgs} from '../codex/deepseek.ts'
 import {prepareTicket,openTicketRuntime,reapTicketRuntime} from '../executor/index.ts'
 import type {Workspace} from '../executor/workspace.ts'
@@ -22,7 +23,6 @@ type Call={id:string;owner:string;assignment:string;ids:string;text:string;turn:
 type SessionRow={owner:string;thread:string;model:string|null;source:string}
 type Live={session:CodexSession; environment?:Environment; workspace?:Workspace}
 const MAIN='main'
-const recoverable=new Set(['serverOverloaded','internalServerError','httpConnectionFailed','responseStreamDisconnected','responseStreamConnectionFailed'])
 const asError=(e:unknown)=>e instanceof Error?e.message:String(e)
 function pullRef(repository:string,n:number){return {source:'github',id:repository+'/pull/'+n}}
 function refFor(w:Workspace):Ref{
@@ -124,6 +124,11 @@ export class Host {
       this.db.prepare("INSERT OR REPLACE INTO host_settings VALUES('allow-write',?)").run(action==='grant'?'yes':'no')
       return {repository:this.config.repository,remoteWrites:action==='grant'}
     }
+    if(action==='role-model'){
+      if(!['main','worker'].includes(String(b.role))||typeof b.model!=='string'||b.model.length>128)throw Error('Expected role and model name')
+      this.db.prepare('INSERT OR REPLACE INTO host_settings VALUES(?,?)').run('model:'+b.role,b.model)
+      return {role:b.role,newSessionModel:b.model||'default'}
+    }
     if(action==='events'){
       const after=Number(b.after??0)
       if(!Number.isSafeInteger(after)||after<0)throw Error('Invalid event cursor')
@@ -134,12 +139,39 @@ export class Host {
         id:t.id,title:t.title,status:t.ended?.outcome??(this.supervision.isPaused(t.id)?'paused':t.assignments.at(-1)?.report?.state??t.assignments.at(-1)?.state),
         attention:t.attention?.question})),messages:this.db.prepare('SELECT * FROM host_messages ORDER BY rowid DESC LIMIT 40').all(),
       faults:this.db.prepare('SELECT * FROM host_faults').all(),mainTokens:this.supervision.usage(),occupied:this.supervision.occupied(),remoteWrites:this.setting('allow-write')==='yes'}
+    if(action==='trace'){
+      const id=String(b.trigger??''), store=this.domain.store, trigger=store.triggers.get(id)
+      if(!trigger)throw Error('Unknown Trigger')
+      const disposition=store.triggers.disposition(id)
+      const decisions=store.decisions.byThread('terminal:default').filter(d=>d.triggerIds.includes(id))
+      const tickets=store.tickets.list().filter(t=>t.origin.triggerIds.includes(id)||disposition?.fanout.includes(t.id)).map(t=>({
+        id:t.id,mandate:t.mandate,assignments:t.assignments,ended:t.ended,
+        history:this.db.prepare("SELECT entity,value FROM domain_history WHERE entity_id=? AND entity IN ('report','attention') ORDER BY seq").all(t.id)
+          .map(row=>({...row,value:JSON.parse(String(row.value))})),
+        deliveries:this.delivery?this.db.prepare('SELECT commit_sha,push_state,pr,done FROM remote_ops WHERE ticket=? ORDER BY rowid').all(t.id):[],
+        tests:this.supervision.tests(t.id)
+      }))
+      return {trigger,disposition,decisions,tickets,channel:this.db.prepare('SELECT rowid AS seq,* FROM host_messages WHERE ticket IN (SELECT value FROM json_each(?)) ORDER BY rowid').all(JSON.stringify(tickets.map(t=>t.id)))}
+    }
     const id=String(b.ticket??''),t=this.domain.store.tickets.get(id)
     if(!t)throw Error('Unknown Ticket')
     if(action==='show')return {ticket:t,session:this.binding(id),tests:this.supervision.tests(id),tokens:this.supervision.usage(id),
       pulls:this.delivery?this.db.prepare('SELECT number,settled FROM tracked_pr WHERE ticket=?').all(id):[],
       deliveries:this.delivery?this.db.prepare('SELECT commit_sha,push_state,pr,done FROM remote_ops WHERE ticket=?').all(id):[],
       deniedTargets:await this.live.get(id)?.environment?.deniedTargets()??[],runs:this.db.prepare('SELECT id,turn,state,attempt FROM host_turns WHERE owner=?').all(id)}
+    if(action==='track-pr'){
+      const n=Number(b.pr)
+      if(!this.remote||!Number.isSafeInteger(n)||n<=0||t.ended)throw Error('An open Ticket and a valid PR number are required')
+      const pull=await this.remote.read(n)
+      if(pull.repo!==this.config.repository||pull.number!==n)throw Error('Foreign pull request')
+      this.domain.store.atomic(()=>{
+        const thread=pullRef(this.config.repository,n)
+        if(!this.domain.store.tickets.get(id)?.follows?.some(f=>f.thread==='github:'+thread.id))
+          this.domain.engine.bindThread(id,thread,false)
+        this.db.prepare('INSERT OR IGNORE INTO tracked_pr(ticket,number) VALUES(?,?)').run(id,n)
+      })
+      return {ticket:id,tracked:n}
+    }
     if(action==='clear-excerpts'){this.supervision.clearExcerpts(id);return {cleared:id}}
     if(t.ended)throw Error('Ticket ended')
     if(action==='pause'){this.supervision.pause(id);await this.interrupt(id);return {paused:id}}
@@ -167,7 +199,8 @@ export class Host {
     let environment:Environment|undefined, workspace:Workspace|undefined,session:CodexSession|undefined
     const serviceHome=join(this.dir,'main-service'),mainCwd=join(this.dir,'main-cwd')
     mkdirSync(mainCwd,{recursive:true,mode:0o700});mkdirSync(serviceHome,{recursive:true,mode:0o700})
-    const override=main?cfg.mainModel:cfg.workerModel
+    const saved=this.setting('model:'+(main?'main':'worker'))
+    const override=saved===undefined?(main?cfg.mainModel:cfg.workerModel):(String(saved)||undefined)
     const model=existing?.model??override??(cfg.provider==='deepseek'?'deepseek-flash':undefined)
     try{
       if(!main){
@@ -250,7 +283,16 @@ export class Host {
     const t=this.domain.store.tickets.get(c.ticketId!)!,w=this.live.get(t.id)?.workspace
     if(!this.delivery||!w)throw Error('Remote delivery not configured')
     const request={...args,title:args.title||t.title,body:args.body??'',draft:args.draft??true}
-    return this.delivery.deliver(id,refFor(w),request,()=>{if(!this.valid(c))throw Error('Stale remote request')})
+    try{return await this.delivery.deliver(id,refFor(w),request,()=>{if(!this.valid(c))throw Error('Stale remote request')})}
+    catch(e){
+      if(this.valid(c)&&/authorization|identity mismatch|permission mismatch|HTTP 40[13]/i.test(asError(e))){
+        this.fault(t.id,e)
+        this.domain.engine.report(t.id,{state:'blocked',summary:'Remote delivery requires current authorization.',question:'Please verify the bound account and repository authorization before resuming.'})
+        this.supervision.pause(t.id)
+        queueMicrotask(()=>void this.interrupt(t.id).catch(reason=>this.fault(t.id,reason)))
+      }
+      throw e
+    }
   }
   private async ready(c:ToolContext,n:number){
     if(!this.remote||!this.db.prepare('SELECT 1 FROM tracked_pr WHERE ticket=? AND number=?').get(c.ticketId!,n))return false
@@ -290,8 +332,8 @@ export class Host {
         }
         if(e.status==='failed'){
           this.fault(owner,e.errorCode??'Model turn failed')
-          if(owner!==MAIN && recoverable.has(e.errorCode??'') && r.attempt<3 && !this.stop && !this.supervision.isPaused(owner)){
-            const ms=[15000,30000,60000][r.attempt]
+          if(owner!==MAIN && retryable.has(e.errorCode??'') && r.attempt<intervals.length && !this.stop && !this.supervision.isPaused(owner)){
+            const ms=intervals[r.attempt]
             this.db.prepare("UPDATE host_turns SET state='retry',attempt=attempt+1,due=? WHERE id=?").run(Date.now()+ms,r.id)
           }else if(owner!==MAIN&&this.domain.store.tickets.get(owner)?.assignments.at(-1)?.id===e.assignmentId){
             this.domain.engine.report(owner,{state:'failed',summary:e.errorCode??'Model failed',question:'Please check the model configuration or retry status.'})

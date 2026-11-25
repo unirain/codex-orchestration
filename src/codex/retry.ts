@@ -1,8 +1,8 @@
 import { setTimeout as delay } from 'node:timers/promises'
 
-const retryable = new Set(['serverOverloaded', 'internalServerError', 'httpConnectionFailed',
+export const retryable = new Set(['serverOverloaded', 'internalServerError', 'httpConnectionFailed',
   'responseStreamConnectionFailed', 'responseStreamDisconnected', 'responseTooManyFailedAttempts', 'flexUnavailable'])
-const intervals = [15_000, 30_000, 60_000]
+export const intervals = [15_000, 30_000, 60_000]
 
 /** Invoke only after a known terminal failure. The host confirms eligibility and
  * reconciles inputs/side effects before each attempt. Unknown outcomes never
