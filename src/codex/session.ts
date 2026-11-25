@@ -34,6 +34,9 @@ export type SessionEvent = Completion
 export interface SessionOptions extends ProcessOptions {
   role: Role
   ticketId?: string
+  /** Set by the trusted isolated ticket launcher after its filesystem, process
+   * and network boundaries are in force; never sourced from tool arguments. */
+  externallySandboxed?: true
   tools?: ToolSpec[]
   /** The host validates the current Assignment and commits a durable, idempotent
    * result, keyed by threadId + turnId + callId, before returning. */
@@ -95,6 +98,7 @@ export class CodexSession {
   initialized?: ObjectValue
 
   private constructor(options: SessionOptions) {
+    if (options.externallySandboxed && options.role !== 'worker') throw new Error('External sandbox requires an isolated Worker')
     if (options.role === 'worker' && !options.ticketId) throw new Error('Worker requires a Ticket binding')
     this.options = options
     const allowed = roleTools[options.role]
@@ -184,6 +188,7 @@ export class CodexSession {
       return Promise.reject(new Error('Session unavailable for a new turn'))
     const threadId = this.threadId
     const starting = this.rpc.request('turn/start', { threadId, clientUserMessageId: input.inputId,
+      ...(this.options.externallySandboxed ? { sandboxPolicy: { type: 'externalSandbox', networkAccess: 'enabled' } } : {}),
       input: [{ type: 'text', text: input.text, text_elements: [] }] })
       .then(value => {
         const turnId = stringField(object(value).turn, 'id')

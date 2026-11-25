@@ -7,16 +7,16 @@ import { retryWorker } from '../src/codex/retry.ts'
 const fixture = `
 const rl=require('node:readline').createInterface({input:process.stdin})
 const out=m=>process.stdout.write(JSON.stringify(m)+'\\n')
-let specs,replies=[],serial=0
+let specs,turnPolicy,replies=[],serial=0
 const req=(id,tool,overrides={})=>out({id,method:'item/tool/call',params:{threadId:'thread1',turnId:'turn'+serial,callId:'call',namespace:null,tool,arguments:{summary:'test',state:'ready'},...overrides}})
 rl.on('line',l=>{
  const {method,id,params,result,error}=JSON.parse(l)
  if(!method){replies.push({id,result,error}); if(replies.length===6)out({method:'turn/completed',params:{threadId:'thread1',turn:{id:'turn'+serial,status:'completed'}}});return}
  if(method==='initialize')out({id,result:{userAgent:'test'}})
  if(method==='thread/start'){specs=params;out({id,result:{thread:{id:'thread1',status:{type:'idle'}},model:params.model||'default-model'}})}
- if(method==='thread/read')out({id,result:{thread:{id:'thread1',specs,replies}}})
+ if(method==='thread/read')out({id,result:{thread:{id:'thread1',specs,replies,turnPolicy}}})
  if(method==='turn/start'){
-  serial++;if(process.env.SCENARIO==='disconnect')return process.exit(0)
+  serial++;turnPolicy=params.sandboxPolicy;if(process.env.SCENARIO==='disconnect')return process.exit(0)
   if(process.env.SCENARIO==='calls'){
    req(201,'orchestrator_report');req(202,'orchestrator_report')
    req(203,'orchestrator_route')
@@ -83,4 +83,14 @@ test('worker retry uses 15/30/60s, stops on expired eligibility, auth and uncert
   assert.equal((await retryWorker({attempt:async()=>({value:'failed',errorCode:'serverOverloaded'}),
     canRetry:async()=>!paused,sleep:async()=>{paused=true}})).attempts,1)
   await assert.rejects(retryWorker({attempt:async()=>{throw new ConnectionLost('uncertain')},canRetry:async()=>true}),ConnectionLost)
+})
+
+test('only a Worker launched inside its verified boundary selects externalSandbox',async t=>{
+  const opts={command:process.execPath,args:['-e',fixture],env:{},onTool:async()=>null}
+  await assert.rejects(CodexSession.connect({...opts,role:'main',externallySandboxed:true}),/isolated Worker/)
+  const session=await CodexSession.connect({...opts,role:'worker',ticketId:'isolated',externallySandboxed:true})
+  t.after(()=>session.close())
+  await session.startThread({cwd:'/workspace'})
+  await session.startTurn({assignmentId:'active',text:'test'})
+  assert.deepEqual((await session.readThread()).turnPolicy,{type:'externalSandbox',networkAccess:'enabled'})
 })
