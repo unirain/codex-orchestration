@@ -42,6 +42,43 @@ export async function openTicketRuntime(opts: RuntimeOptions) {
   }
 }
 
+interface TicketResourceRef { stateDir:string; ticketId:string; docker?:string }
+async function ticketResources(opts:TicketResourceRef) {
+  const bin=opts.docker ?? 'docker'
+  // Docker client gets its operator-selected daemon endpoint, never inherits application secrets.
+  const env: NodeJS.ProcessEnv={}
+  for(const k of ['PATH','HOME','DOCKER_CONFIG','DOCKER_HOST','DOCKER_CONTEXT','DOCKER_TLS_VERIFY','DOCKER_CERT_PATH','XDG_RUNTIME_DIR','TMPDIR'])
+    if(process.env[k])env[k]=process.env[k]
+  const docker=(args:string[],input?:string)=>checked(bin,args,{input,env})
+  const tag=ticketKey((await realpath(opts.stateDir))+'\0'+opts.ticketId).slice(0,28)
+  const name='orch-ticket-'+tag, side=name+'-egress', history=name+'-history', relay=name+'-relay'
+  const label='local.codex-orchestration.ticket='+tag
+  // A single-repo host lock serializes runtime replacement. Only touch labelled containers owned by this ticket.
+  async function removeOwned(kind:'container'|'volume', id:string){
+    const inspection=await run(bin,[kind,'inspect','--format','{{json .}}',id],{env})
+    if(inspection.code!==0){if(/no such (container|volume|object)/i.test(inspection.output))return false;throw Error(inspection.output)}
+    const data=JSON.parse(inspection.output)
+    if((data.Config?.Labels??data.Labels)?.['local.codex-orchestration.ticket']!==tag) throw Error('Docker resource ownership mismatch: '+id)
+    await docker([kind,'rm',...(kind==='container'?['-f']:[]),kind==='container'?data.Id:id])
+    return true
+  }
+  async function reap() {
+    const container=await removeOwned('container',name)
+    const egress=await removeOwned('container',side)
+    const removedRelay=await removeOwned('volume',relay)
+    return {container,egress,relay:removedRelay}
+  }
+  return {docker, env, tag, name, side, history, relay, label, reap}
+}
+
+// Requires the caller's exclusive per-repository host lock.
+export async function reapTicketRuntime(opts:TicketResourceRef) {
+  const id=join(await realpath(opts.stateDir),ticketKey(opts.ticketId))
+  if (active.has(id)) throw Error('live Ticket must close through its runtime handle')
+  active.add(id)
+  try { return await (await ticketResources(opts)).reap() } finally { active.delete(id) }
+}
+
 async function createRuntime(opts: RuntimeOptions) {
   const ws=opts.workspace, bin=opts.docker??'docker', stateDir=resolve(opts.stateDir)
   const ticketDir=join(stateDir,'tickets',ticketKey(ws.ticketId))
@@ -56,29 +93,14 @@ async function createRuntime(opts: RuntimeOptions) {
   const provider=new URL(opts.providerBaseUrl??'https://api.openai.com/v1')
   if(provider.protocol!=='https:' || provider.search || provider.hash || provider.username || provider.password)throw Error('require HTTPS model provider base URL')
   const allow=(opts.allow??[]).map(authority)
-  // Docker client gets its operator-selected daemon endpoint, never inherits application secrets.
-  const env: NodeJS.ProcessEnv={}
-  for(const k of ['PATH','HOME','DOCKER_CONFIG','DOCKER_HOST','DOCKER_CONTEXT','DOCKER_TLS_VERIFY','DOCKER_CERT_PATH','XDG_RUNTIME_DIR','TMPDIR'])
-    if(process.env[k])env[k]=process.env[k]
-  const docker=(args:string[],input?:string)=>checked(bin,args,{input,env})
+  const {docker,env,tag,name,side,history,relay,label,reap}=await ticketResources({stateDir,ticketId:ws.ticketId,docker:bin})
   if (!opts.image || opts.image.startsWith('-') || (!/(?:@sha256:|^sha256:)[a-f0-9]{64}$/.test(opts.image) &&
       (!opts.image.split('/').at(-1)?.includes(':') || opts.image.endsWith(':latest')))) throw Error('specify a fixed image tag or digest')
   const info=JSON.parse(await docker(['image','inspect','--format','{{json .}}',opts.image]))
   if(info.Os!=='linux' || typeof info.Id!=='string' || !/^sha256:[a-f0-9]{64}$/.test(info.Id) || Object.keys(info.Config.Volumes??{}).length)throw Error('expected a local immutable Linux development image without implicit volumes')
-  const tag=ticketKey((await realpath(stateDir))+'\0'+ws.ticketId).slice(0,28)
-  const name='orch-ticket-'+tag, side=name+'-egress', history=name+'-history', relay=name+'-relay'
-  const label='local.codex-orchestration.ticket='+tag
   const limits=['--read-only','--security-opt','no-new-privileges','--cap-drop','ALL','--pids-limit','400','--log-opt','max-size=1m','--log-opt','max-file=2','--label',label]
   const workerBin=(args:string[],user:string)=>['exec','--user',user,...(user===uid?repoEnv:[]),name,...args]
-  // A single-repo host lock serializes runtime replacement. Only touch labelled containers owned by this ticket.
-  async function removeOwned(kind:'container'|'volume', id:string){
-    const inspection=await run(bin,[kind,'inspect','--format','{{json .}}',id],{env})
-    if(inspection.code!==0){if(/no such (container|volume|object)/i.test(inspection.output))return;throw Error(inspection.output)}
-    const data=JSON.parse(inspection.output)
-    if((data.Config?.Labels??data.Labels)?.['local.codex-orchestration.ticket']!==tag) throw Error('Docker resource ownership mismatch: '+id)
-    await docker([kind,'rm',...(kind==='container'?['-f']:[]),id])
-  }
-  await removeOwned('container',name);await removeOwned('container',side);await removeOwned('volume',relay)
+  await reap()
   const oldHistory=await run(bin,['volume','inspect',history],{env})
   if(oldHistory.code===0){
     if(JSON.parse(oldHistory.output)[0]?.Labels?.['local.codex-orchestration.ticket']!==tag)throw Error('private history belongs to another Ticket')
@@ -86,7 +108,7 @@ async function createRuntime(opts: RuntimeOptions) {
   else if(!/no such volume/i.test(oldHistory.output))throw Error(oldHistory.output)
   await docker(['volume','create','--label',label,history])
   await docker(['volume','create','--label',label,relay])
-  const close=async()=>{await removeOwned('container',name);await removeOwned('container',side);await removeOwned('volume',relay)}
+  const close=async()=>{await reap()}
   try {
     await docker(['run','-d','--pull=never','--name',side,...limits,'--user','0:0','--cap-add','CHOWN',
       '--mount',`type=volume,src=${relay},dst=/relay`,...bind(helperDir,'/opt/orch',true),
