@@ -1,12 +1,12 @@
 # Specification — 本地持续推进的 Codex agent
 
 Type: Project
-Status: READY FOR HUMAN REVIEW
+Status: APPROVED — READY FOR PLAN
 Version: 0.46
 Owner: 项目发起人
 Intent: [intent.md](intent.md)，2026-11-18 批准，2026-11-19 修订 PR 交付语义，2026-11-20 扩展至绑定 PR 的关闭与合并反馈，以及后台重启恢复
 Parent specification: 不适用
-Last updated: 2026-11-20
+Last updated: 2026-11-23
 
 ## Intent Traceability
 
@@ -425,7 +425,7 @@ Assessor 通过 App Server 驱动 Main Session 处理 Candidate，Executor 通�
 
 ## Specification Readiness
 
-- Status: READY FOR HUMAN REVIEW
+- Status: APPROVED — READY FOR PLAN
 - Version: 0.46
 - 语义评分：85/100。意图、功能与验收可追溯性各 4/4；状态与恢复、技术架构、权限与数据、模型与工具控制、运行与成本各 3/4。评分评价规格充分性。
 - 规格层阻塞：无。动态工具、容器内的工具执行、会话续接、模型密钥隔离、网络出站控制和恢复防重均须取得目标环境实测证据，属于发版条件。若已确认的单容器布局无法满足服务身份与项目命令隔离，需要修订并重新批准规格。
@@ -439,8 +439,8 @@ Assessor 通过 App Server 驱动 Main Session 处理 Candidate，Executor 通�
 
 ## Human Approval
 
-- Decision: Pending
-- Approver: Pending
-- Approved version: Pending
-- Approval evidence: Pending
+- Decision: Approved
+- Approver: 项目发起人
+- Approved version: 0.46
+- Approval evidence: 2026-11-23（Asia/Shanghai），项目发起人针对 v0.46 规格审批请求回复「批准」。
 - Conditions and accepted risks: None
