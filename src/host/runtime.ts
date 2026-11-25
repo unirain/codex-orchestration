@@ -103,6 +103,8 @@ export class Host {
         this.supervision.finishTest(run.id,{status:'unknown'})
     }
     if(this.remote){try{await this.remote.verify();this.clear('github')}catch(e){this.fault('github',e)}}
+    // A confirmed remote write may already exist even if its caller died before recording the PR number.
+    await this.reconcileDeliveries()
     for(const t of this.domain.store.tickets.open().reverse())if(t.assignments.at(-1)?.state==='running')
       this.db.prepare('INSERT OR IGNORE INTO host_recovery VALUES(?)').run(t.id)
     for(const row of this.db.prepare("SELECT DISTINCT owner FROM host_turns WHERE state IN ('active','prepared') UNION SELECT owner FROM host_sessions WHERE owner='main'").all())
@@ -360,6 +362,7 @@ export class Host {
       if(!this.supervision.reserve(owner,assignment,reason))return 'defer'
       const runs=this.supervision.tests(owner)
       text=JSON.stringify({assignment,ticket:owner,mandate:t.mandate,origin:this.domain.store.triggers.get(t.origin.triggerId)?.text,
+        delivery:this.delivery?this.db.prepare('SELECT commit_sha,pr,done,push_state FROM remote_ops WHERE ticket=? ORDER BY rowid DESC LIMIT 3').all(owner):[],
         task:effect.kind==='start'?'Begin or recover the authorized assignment.':'Decide each new input within the mandate.',
         inputs:items,recentTests:runs.slice(-5).map(r=>({id:r.id,command:r.command,status:r.status,exitCode:r.exitCode}))})
     }
@@ -438,15 +441,17 @@ export class Host {
     await this.domain.drain(e=>this.dispatch(e))
     if(this.delivery && !this.stop){
       try{await this.delivery.poll()}catch(e){this.fault('github',e)}
-      if(!this.sleeping.has('deliveries')||this.sleeping.get('deliveries')!<=Date.now()){
-        this.sleeping.set('deliveries',Date.now()+60000)
-        for(const op of this.delivery.pending()){
-          const ticket=String(op.ticket)
-          if(this.reconciling.has(ticket))continue
-          try{await this.delivery.deliver(String(op.call),JSON.parse(String(op.ref)),JSON.parse(String(op.request)))}
-          catch(e){this.fault(ticket,e)}
-        }
-      }
+      if((this.sleeping.get('deliveries')??0)<=Date.now())await this.reconcileDeliveries()
+    }
+  }
+  private async reconcileDeliveries(){
+    this.sleeping.set('deliveries',Date.now()+60000)
+    if(!this.delivery)return
+    for(const op of this.delivery.pending()){
+      const ticket=String(op.ticket)
+      if(this.reconciling.has(ticket))continue
+      try{await this.delivery.deliver(String(op.call),JSON.parse(String(op.ref)),JSON.parse(String(op.request)))}
+      catch(e){this.fault(ticket,e)}
     }
   }
   tick(){

@@ -40,6 +40,7 @@ export class Delivery {
   }
   async deliver(call:string,ref:Ref,request:DeliveryRequest, live:()=>void=()=>{}) {
     if(this.active.has(ref.ticket))throw Error('Delivery already in progress for this Ticket')
+    const checkWrite=async()=>{await this.remote.verify();live();this.hooks.authorize(ref)}
     if(!request.title?.trim()||typeof request.body!=='string'||typeof request.draft!=='boolean')throw Error('Incomplete PR request')
     this.active.add(ref.ticket)
     try{
@@ -69,7 +70,7 @@ export class Delivery {
       const head=await this.remote.head(ref.branch)
       if(head!==op.commit_sha){
         if(head!==op.previous||op.push_state==='confirmed')throw Error('Remote head diverged; operator reconciliation required')
-        live();this.hooks.authorize(ref)
+        await checkWrite()
         await this.remote.push(ref,op.commit_sha)
         if(await this.remote.head(ref.branch)!==op.commit_sha)throw Error('Remote push not confirmed')
       }
@@ -88,7 +89,7 @@ export class Delivery {
         if(match.length>1)throw Error('Multiple matching PRs; operator reconciliation required')
         if(match.length)pr=match[0]
         else {
-          live();this.hooks.authorize(ref)
+          await checkWrite()
           pr=await this.remote.create(ref,request.title,request.body,request.draft)
         }
       }
@@ -97,11 +98,11 @@ export class Delivery {
       this.db.prepare('UPDATE remote_ops SET pr=? WHERE call=?').run(pr.number,call)
       if(!pr.closedAt) {
         if(pr.title!==request.title||pr.body!==request.body){
-          live();this.hooks.authorize(ref)
+          await checkWrite()
           await this.remote.edit(pr.number,request.title,request.body)
         }
         if(pr.draft && !request.draft) {
-          live();this.hooks.authorize(ref)
+          await checkWrite()
           await this.remote.ready(pr.number)
         }
       }

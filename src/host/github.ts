@@ -22,7 +22,7 @@ export interface Remote {
   edit(number: number, title: string, body: string): Promise<void>
   ready(number: number): Promise<void>
 }
-export interface CommandFailure { code?: number|string; stderr?: string }
+export interface CommandFailure { code?: number|string; stderr?: string; stdout?: string }
 export class RetryLater extends Error {
   delayMs: number
   constructor(delayMs: number) { super('GitHub requested a later poll'); this.delayMs=delayMs }
@@ -39,20 +39,21 @@ export class GitHub implements Remote {
       GH_PROMPT_DISABLED:'1', GIT_CONFIG_NOSYSTEM:'1', GIT_CONFIG_GLOBAL:'/dev/null', GIT_TERMINAL_PROMPT:'0'}
   }
   private async api(path: string, args: string[] = []) {
+    const headers=/\/pulls\/\d+$/.test(path) && !args.includes('--method')
     try {
-      const {stdout}=await exec(this.config.gh,['api','--hostname','github.com',path,...args],{env:this.env,timeout:30000,maxBuffer:4*1024*1024})
-      return JSON.parse(stdout)
+      const {stdout}=await exec(this.config.gh,['api','--hostname','github.com',path,...args,...(headers?['--include']:[])],{env:this.env,timeout:30000,maxBuffer:4*1024*1024})
+      const body=headers?stdout.replace(/^HTTP\/[^]*?\r?\n\r?\n/,''):stdout
+      return JSON.parse(body)
     } catch(err) {
-      const status=(err as CommandFailure).stderr?.match(/HTTP (\d{3})/)?.[1]
-      if (status==='429'||(status==='403' && /rate limit/i.test((err as CommandFailure).stderr??''))) {
-        // Fetch response headers without repeating the rejected mutation.
-        let delay=60000
-        try {
-          const {stdout}=await exec(this.config.gh,['api','--hostname','github.com','-i','rate_limit'],{env:this.env,timeout:5000})
-          const reset=Number(stdout.match(/^x-ratelimit-reset:\s*(\d+)/im)?.[1])
-          if (reset) delay=Math.max(delay,reset*1000-Date.now())
-        } catch { /* next poll retains the conservative minimum */ }
-        throw new RetryLater(delay)
+      const failure=err as CommandFailure
+      const status=failure.stderr?.match(/HTTP (\d{3})/)?.[1]
+      const header=(failure.stdout??'').split(/\r?\n\r?\n/)[0]
+      const retry=header.match(/^retry-after:\s*(.+)/im)?.[1]?.trim()
+      if (status==='429'||(status==='403' && (retry||/rate limit/i.test(failure.stderr??'')))) {
+        const seconds=Number(retry)
+        const retryMs=Number.isFinite(seconds)?seconds*1000:Date.parse(retry??'')-Date.now()
+        const resetMs=Number(header.match(/^x-ratelimit-reset:\s*(\d+)/im)?.[1])*1000-Date.now()
+        throw new RetryLater(Math.max(60000,retryMs||0,resetMs||0))
       }
       throw Object.assign(Error('GitHub API request failed'+(status?' (HTTP '+status+')':'')),{status})
     }
