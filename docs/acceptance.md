@@ -46,7 +46,7 @@ ORCH_DEEPSEEK_LIVE=1 CODEX_TEST_BIN=/absolute/path/to/codex-0.171.0 \
 | AC-010 | 受控远端在推送后撤权，宿主保留推送收据并阻止建 PR；真实容器测试检查项目身份和宿主凭据入口。 | [撤权](../tests/delivery.test.ts) · [容器](../tests/executor-container.test.ts) |
 | AC-011 | 用真实 SQLite 预留 3 个普通槽位，只允许已有空闲工单的人工唤醒到第 4 槽，人工队列优先。 | [并发与排队](../tests/supervision.test.ts) |
 | AC-012 | 暂停期间确认目标 turn 终止后即释放槽位，已启动测试在槽外收尾，完成事件不触发新执行。 | [暂停竞争](../tests/supervision.test.ts) |
-| AC-013 | 空目录、并发准备、Git 目录复用、空目录失败清理及非空现场保留用真实文件系统验证；准备命令 10 分钟超时属于代码配置，本次未实际等待到期。 | [准备及失败](../tests/executor-workspace.test.ts) |
+| AC-013 | 空目录、并发准备、Git 目录复用、空目录失败清理及非空现场保留用真实文件系统验证；可控时钟推进到 599999 ms 时真实准备进程仍在，第 600000 ms 终止并只清理本次空目录。 | [准备及失败](../tests/executor-workspace.test.ts) · [超时边界](../tests/prepare-timeout.test.ts) |
 | AC-014 | 真实本地 Git 远端 HEAD 指向 trunk；使用远端提交创建 Ticket 分支及私有 git 元数据，未提交的操作者工作区改动保留。PR 基线写入交付引用。 | [仓库与基线](../tests/executor-workspace.test.ts) |
 | AC-015 | 真实 DeepSeek 邮件 Worker 的 thread 为 `01a210e4-9eb2-79a2-8eb6-134a32a978b8`，暂停中断了 `01a210e4-9f06-7702-a71e-96da87b89b62`，后续接续 `01a210e4-c4a9-7a03-89e2-96acfa155271`。另一张 Ticket 独立继续。 | [真实两票暂停](../tests/host-live-pause.test.ts) · [离线反馈](acceptance/ac-046.md) |
 | AC-016 | 模拟跨角色及迟到回调，用实际 SQLite 检查报告归属和重放；真实 Codex + 本地 Responses 验证动态工具、Input 标识及续接。 | [领域工具](../tests/host-tools.test.ts) · [协议](../tests/codex-real.test.ts) |
