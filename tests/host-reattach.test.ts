@@ -74,3 +74,100 @@ test('wrong thread, duplicate markers, unbound active turn or incomplete view bl
   assert.deepEqual(h.events,[])
   assert.equal(h.d.db.prepare('SELECT state FROM host_turns').get()!.state,'prepared')
 })
+
+test('AC-018 real service: dropped turn/start acknowledgement reattaches to the live turn', {
+  skip: !process.env.CODEX_TEST_BIN, timeout: 30_000,
+}, async t=>{
+  const {spawn} = await import('node:child_process')
+  const {mkdtemp, mkdir, writeFile, rm} = await import('node:fs/promises')
+  const {join} = await import('node:path')
+  const {createServer} = await import('node:http')
+  const {once} = await import('node:events')
+  const {setTimeout:delay} = await import('node:timers/promises')
+  const {CodexSession,ConnectionLost} = await import('../src/codex/session.ts')
+  const root=await mkdtemp('/tmp/reattach-')
+  const cwd=join(root,'workspace'), state=join(root,'state')
+  await Promise.all([mkdir(cwd),mkdir(state)])
+  const env={HOME:root,CODEX_HOME:state,PATH:process.env.PATH,TMPDIR:root}
+  const bin=process.env.CODEX_TEST_BIN!
+  const received=Promise.withResolvers<void>(), finish=Promise.withResolvers<void>()
+  let requests=0
+  const provider=createServer(async(req,res)=>{
+    for await (const _ of req) {}
+    if (!req.url?.endsWith('/responses')) { res.writeHead(404).end(); return }
+    requests++;received.resolve()
+    await finish.promise
+    const events=[
+      {type:'response.created',response:{id:'r1'}},
+      {type:'response.output_item.done',item:{type:'message',role:'assistant',id:'m1',content:[{type:'output_text',text:'done'}]}},
+      {type:'response.completed',response:{id:'r1',usage:{input_tokens:1,output_tokens:1,total_tokens:2}}},
+    ]
+    res.writeHead(200,{'content-type':'text/event-stream'}).end(events.map(e=>'event: '+e.type+'\ndata: '+JSON.stringify(e)+'\n\n').join(''))
+  })
+  provider.listen(0,'127.0.0.1');await once(provider,'listening')
+  const port=(provider.address() as {port:number}).port
+  await writeFile(join(state,'config.toml'),[
+    'model="gpt-5.4"','model_provider="fixture"','[model_providers.fixture]','name="isolated test"',
+    'base_url="http://127.0.0.1:'+port+'/v1"','wire_api="responses"','request_max_retries=0','stream_max_retries=0','supports_websockets=false',
+  ].join('\n'))
+  const reserve=createServer()
+  reserve.listen(0,'127.0.0.1');await once(reserve,'listening')
+  const address='ws://127.0.0.1:'+(reserve.address() as {port:number}).port
+  await new Promise<void>(resolve=>reserve.close(()=>resolve()))
+  const token=join(root,'cap')
+  await writeFile(token,(await import('node:crypto')).randomBytes(32).toString('hex'),{mode:0o600})
+  const service=spawn(bin,['app-server','--listen',address,'--ws-auth','capability-token','--ws-token-file',token],{env,cwd,stdio:'ignore'})
+  const closed=once(service,'close')
+  const clients: InstanceType<typeof CodexSession>[]=[]
+  t.after(async()=>{
+    finish.resolve()
+    await Promise.all(clients.map(c=>c.close()))
+    service.kill()
+    await closed
+    provider.closeAllConnections();provider.close()
+    await rm(root,{recursive:true,force:true,maxRetries:3})
+  })
+  for(let n=0;n<100;n++){
+    if(await fetch(address.replace('ws:','http:')+'/readyz').then(()=>true,()=>false))break
+    await delay(25)
+  }
+  const h=fixture();t.after(h.close)
+  const bridge=`
+    const {createInterface}=require('node:readline'),{readFileSync}=require('node:fs')
+    const [endpoint,file,mode]=process.argv.slice(1)
+    const ws=new WebSocket(endpoint,{headers:{Authorization:'Bearer '+readFileSync(file,'utf8')}})
+    ws.addEventListener('error',()=>process.exit(2));ws.addEventListener('close',()=>process.exit(0))
+    let drop
+    ws.addEventListener('open',()=>createInterface({input:process.stdin}).on('line',line=>{
+      const m=JSON.parse(line);if(mode==='drop'&&m.method==='turn/start')drop=m.id
+      ws.send(line)
+    }))
+    ws.addEventListener('message',({data})=>{
+      const m=JSON.parse(data)
+      if(drop!==undefined&&m.id===drop&&m.result?.turn)process.exit(0)
+      process.stdout.write(data+'\\n')
+    })
+  `
+  const basic={env,cwd,role:'worker' as const,ticketId:h.owner,onTool:async()=>{throw Error('No tools expected')}}
+  const first=await CodexSession.connect({...basic,command:process.execPath,args:['-e',bridge,address,token,'drop']})
+  clients.push(first)
+  const {threadId}=await first.startThread({cwd})
+  h.d.db.prepare('UPDATE host_sessions SET thread=? WHERE owner=?').run(threadId,h.owner)
+  await assert.rejects(first.startTurn({assignmentId:h.assignment,inputId:key('turn-input','call','0'),text:'Say done'}),ConnectionLost)
+  await received.promise
+  const second=await CodexSession.connect({...basic,command:process.execPath,args:['-e',bridge,address,token,'normal']})
+  clients.push(second)
+  const history=await second.readThread(threadId,true)
+  const turns=history.turns as {id:string,status:string}[]
+  assert.equal(turns.length,1)
+  assert.equal(turns[0].status,'inProgress')
+  const turnId=turns[0].id
+  await second.resumeThread({threadId,cwd,active:{turnId,assignmentId:h.assignment}})
+  assert.equal(await observeDispatch(h.d,h.owner,await second.readThread(threadId,true) as {turns:unknown[]},h.callbacks),'observing')
+  finish.resolve()
+  const done=await second.waitForCompletion(turnId)
+  assert.equal(done.status,'completed')
+  assert.equal(await observeDispatch(h.d,h.owner,await second.readThread(threadId,true) as {turns:unknown[]},h.callbacks),'idle')
+  assert.deepEqual(h.events,['started','completed'])
+  assert.equal(requests,1)
+})
