@@ -54,12 +54,12 @@ ORCH_DEEPSEEK_LIVE=1 CODEX_TEST_BIN=/absolute/path/to/codex-0.171.0 \
 | AC-018 | 启动前明确过载按 15/30/60 秒同模型重试，耗尽后可查询原因。真实 App Server 测试中启动回执丢失后重新连接、核对并观察原活动 turn；宿主重启的替换 Assignment 路径单独测试。 | [启动前重试](../tests/host-controls.test.ts) · [连接恢复](../tests/host-reattach.test.ts) · [容器传输](../tests/executor-container.test.ts) · [重启](../tests/host-recovery.test.ts) |
 | AC-019 | 实际 SQLite 分别保留失败与复测摘要，用测试标记验证命令和失败片段脱敏、字节截断及 UTF-8 边界。 | [运行记录](../tests/supervision.test.ts) |
 | AC-020 | 时间推进到一年后、重新开库仍可查询；清理一张工单后历史摘要与另一张工单的片段保留。 | [定向清理](../tests/supervision.test.ts) · [重启回查](../tests/audit-history.test.ts) |
-| AC-021 | 容器通过获准本地模拟包源，未获准目标被拒；受控故障测试显示 blocked/具体问题。依赖阻塞到用户处理的真实模型对话尚未单独实测。 | [容器与代理](../tests/executor-container.test.ts) · [报告](../tests/host-tools.test.ts) |
+| AC-021 | 真实容器通过获准包源安装依赖。DeepSeek Worker 缺少必需依赖时，未获准目的地未收到请求，终端展示包名、目标主机、端口和需要用户处理的原因。 | [容器与代理](../tests/executor-container.test.ts) · [真实 Worker 的 Attention](../tests/executor-dependency-attention.test.ts) |
 | AC-022 | 真实容器与本地 TLS 测试服务按完整主机及端口授权，测试重定向、CONNECT、子域及通配规则。 | [TLS 包源](../tests/executor-container.test.ts) · [网络规则](../tests/executor-network.test.ts) |
 | AC-023 | 实际运行两组各三次失败，调用真实 DeepSeek 判断下一步，分别观察到有区分力的复测和列出所需信息后暂停。 | [模型行为](../tests/audit-stalled-model.test.ts) · [持久记录](../tests/supervision.test.ts) |
 | AC-024 / AC-025 | 逐 Ticket 配额与预算宽限在 v0.46 后置。 | [规格](../spec.md#llm-and-model-strategy) |
 | AC-026 | 使用可控时钟从 turn 结束开始算 30 分钟；重开 turn/暂停撤销旧窗口，重复终态不误释放当前槽位。实际进程终止另有 Docker 证据。 | [计时](../tests/supervision.test.ts) · [实际取消](../tests/executor-container.test.ts) |
-| AC-027 | 两张真实隔离容器验证另一 Ticket、外部符号链接和宿主接口无法访问；受保护的内置工具另有真实模型选测。跨全部文件读取路径、用户主动提供片段后继续的完整模型上下文仍需单列验证。 | [源码隔离](../tests/executor-container.test.ts) |
+| AC-027 | 真实 Linux Codex 通过原生文件 RPC、shell 及搜索读取本 Ticket 源码。受控 HTTPS 模型服务捕获全部 5 份请求，均无另一 Ticket 或外部 SDK 的标记。用户在下一轮明确提供的 SDK 声明在同一 thread 被使用。 | [跨容器隔离](../tests/executor-container.test.ts) · [完整模型输入](../tests/executor-source-context.test.ts) |
 | AC-028 | 实际 Docker 并发验证不同文件、凭据、网络和取消；用实际 SQLite 验证暂停的作业能收尾。 | [容器](../tests/executor-container.test.ts) · [暂停](../tests/supervision.test.ts) |
 | AC-029 | 两个容器运行相同固定镜像；缺失镜像启动失败，Ticket 工作目录保留；测试记录含镜像身份。 | [环境](../tests/executor-container.test.ts) · [摘要](../tests/supervision.test.ts) |
 | AC-030 | 两个真实 CLI 进程从不同 cwd 同时启动，连到同一常驻进程。受控 Main 建一张 Ticket、一个首个 Assignment，之前的客户端退出后仍可查询。真实后台接续见 AC-002。 | [并发启动](../tests/audit-host.test.ts) · [退出入口后接续](acceptance/ac-046.md) |
