@@ -121,8 +121,18 @@ async function prepare(o: PrepareOptions, root: string): Promise<Workspace> {
     LC_ALL: 'C',
     ...o.gitEnv,
   }
+  const deadline = performance.now() + 600_000
+  function remainingMs() {
+    const remaining = Math.ceil(deadline - performance.now())
+    if (remaining <= 0) throw Error('Ticket preparation exceeded its 10 minute limit')
+    return remaining
+  }
   const git = (args: string[], cwd = root) =>
-    checked('git', ['-c', 'core.hooksPath=/dev/null', ...args], { cwd, env: gitEnv, timeoutMs: 600000 })
+    checked('git', ['-c', 'core.hooksPath=/dev/null', ...args], {
+      cwd,
+      env: gitEnv,
+      timeoutMs: remainingMs(),
+    })
   try {
     const profile = o.prepare ?? { kind: 'empty' }
     if (profile.kind === 'empty') await mkdir(dir, { mode: 0o700 })
@@ -131,7 +141,7 @@ async function prepare(o: PrepareOptions, root: string): Promise<Workspace> {
       else
         await checked('/bin/sh', ['-eu', '-c', profile.command], {
           cwd: root,
-          timeoutMs: 600000,
+          timeoutMs: remainingMs(),
           env: {
             PATH: process.env.PATH,
             TICKET_DIR: dir,

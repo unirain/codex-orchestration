@@ -16,7 +16,7 @@ docker image inspect --format '{{.Id}}' orch-local/codex-node:0.171.0
 
 ## 容器进程与仓库网络
 
-每张 Ticket 的开发容器只有 loopback 接口。仓库命令由独立的 exec-server 以项目 UID 执行，当前源码只挂载在 `/workspace`。App Server 使用服务 UID 61000 并单独持久化 Ticket 的会话卷。启动时核实远端 exec-server 就绪，服务身份的本地文件及执行接口均已禁用。模型中继使用 UID 61001，通过私有 tmpfs 保存专用模型凭据，服务使用每次启动重新生成的凭证访问中继。
+每张 Ticket 的开发容器只有 loopback 接口。仓库命令由独立的 exec-server 以项目 UID 执行，当前源码只挂载在 `/workspace`。App Server 使用服务 UID 61000 并单独持久化 Ticket 的会话卷。宿主经一次性客户端连接同一个常驻 App Server，回环 WebSocket 管理端口在协议握手中校验该运行实例的私有访问凭据。客户端断开后，已启动的 turn 可以继续；重连先核对原 turn 的实际状态。启动时核实远端 exec-server 就绪，服务身份的本地文件及执行接口均已禁用。模型中继使用 UID 61001，通过私有 tmpfs 保存专用模型凭据，服务使用每次启动重新生成的凭证访问中继。
 
 仓库的 HTTP(S) 请求经另一进程过滤，在只读挂载的 Unix 套接字上进入该 Ticket 的出网容器。允许项按完整主机及端口匹配，重新定向和同一 HTTPS 连接上的请求都核对目标。HTTPS 包请求在此受信容器中解密后转发，使用该 Ticket 专属的临时 CA 验证这一段连接。上游连接独立校验远端证书。公开 CA 在项目环境的 TLS 变量中配置，签名私钥只在出网容器 tmpfs 中。依赖客户端须支持显式 HTTP 代理和自定义 CA；要求证书固定或使用其他网络协议的工具会看到连接失败。
 
@@ -26,7 +26,7 @@ docker image inspect --format '{{.Id}}' orch-local/codex-node:0.171.0
 ORCH_TEST_IMAGE=orch-local/codex-node:0.171.0 node --test tests/executor-*.test.ts
 ```
 
-上述命令验证真实 Git 仓库、并行 Linux 容器、依赖安装、网络重定向、测试取消、停止遗留进程和目录保留。额外的 DeepSeek 验收需要专用 `DEEPSEEK_API_KEY`，会验证两次成功的模型 turn 和一次失效凭据的请求。它在容器重建前后检查同一 Codex thread、项目身份和工作目录证据。
+上述命令验证真实 Git 仓库、并行 Linux 容器、依赖安装、网络重定向、测试取消、停止遗留进程和目录保留。额外的 DeepSeek 验收需要专用 `DEEPSEEK_API_KEY`，会验证有效与失效模型凭据、容器重建，以及活跃 turn 的控制连接断开与恢复。它在容器重建前后检查同一 Codex thread、项目身份和工作目录证据。
 
 ```sh
 ORCH_DEEPSEEK_LIVE=1 ORCH_TEST_IMAGE=orch-local/codex-node:0.171.0 \
