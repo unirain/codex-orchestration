@@ -128,6 +128,13 @@ export class CodexSession {
         clientInfo: { name: 'codex-orchestration', title: 'Local ticket orchestrator', version: '0.1' },
         capabilities: { experimentalApi: true },
       }))
+      // The Main runs on the host. Verify the build whose actual provider tool
+      // catalog passed our main-only capabilities test, before opening a thread.
+      if (options.role === 'main') {
+        const agent = session.initialized.userAgent
+        const version = typeof agent === 'string' ? /^codex-orchestration\/(\d+\.\d+\.\d+)(?:\s|$)/.exec(agent)?.[1] : undefined
+        if (version !== '0.171.0') throw new Error('Main requires tested Codex App Server 0.171.0; found ' + (version ?? 'unidentified build'))
+      }
       session.rpc.notify('initialized')
       return session
     } catch (error) {
