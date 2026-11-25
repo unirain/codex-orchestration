@@ -8,6 +8,7 @@ import type { Config } from './config.ts'
 import { CodexSession, ConnectionLost, RpcError, errorCode } from '../codex/session.ts'
 import type { ToolContext, SessionEvent } from '../codex/session.ts'
 import { intervals, retryable } from '../codex/retry.ts'
+import { openMainTransport, type MainTransport } from '../codex/main-transport.ts'
 import { deepseekArgs } from '../codex/deepseek.ts'
 import { prepareTicket, openTicketRuntime, reapTicketRuntime } from '../executor/index.ts'
 import type { Workspace } from '../executor/workspace.ts'
@@ -32,7 +33,13 @@ type Call = {
   attempt: number
   due: number
 }
-type SessionRow = { owner: string; thread: string; model: string | null; source: string }
+type SessionRow = {
+  owner: string
+  thread: string
+  model: string | null
+  source: string
+  requestedModel: string | null
+}
 type Live = { session: CodexSession; environment?: Environment; workspace?: Workspace }
 const MAIN = 'main'
 const asError = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -64,6 +71,7 @@ export class Host {
   private working?: Promise<void>
   private timer?: NodeJS.Timeout
   private tests = new Map<string, { abort: AbortController; done: Promise<void> }>()
+  private mainTransport?: MainTransport
   private preparing = new Map<string, Promise<Live>>()
   private reconciling = new Set<string>()
   private disconnected = new Map<string, Live>()
@@ -78,6 +86,9 @@ export class Host {
     const db = this.domain.db
     db.exec(`CREATE TABLE IF NOT EXISTS host_settings(id TEXT PRIMARY KEY,value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS host_sessions(owner TEXT PRIMARY KEY,thread TEXT NOT NULL UNIQUE,model TEXT,source TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS host_model_choice(owner TEXT PRIMARY KEY,requestedModel TEXT);
+      CREATE TABLE IF NOT EXISTS host_environment(seq INTEGER PRIMARY KEY, ticket TEXT, assignment TEXT, imageRef TEXT, imageId TEXT,
+      codexVersion TEXT,directory TEXT,branch TEXT,baseBranch TEXT,baseCommit TEXT);
       CREATE TABLE IF NOT EXISTS host_turns(id TEXT PRIMARY KEY,owner TEXT NOT NULL,assignment TEXT NOT NULL,ids TEXT NOT NULL,text TEXT NOT NULL,
       turn TEXT,state TEXT NOT NULL,attempt INTEGER NOT NULL DEFAULT 0,due INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS host_messages(id TEXT PRIMARY KEY,text TEXT NOT NULL,ticket TEXT,kind TEXT NOT NULL);
@@ -302,6 +313,7 @@ export class Host {
       return {
         ticket: t,
         session: this.binding(id),
+        environments: this.db.prepare('SELECT * FROM host_environment WHERE ticket=? ORDER BY seq').all(id),
         tests: this.supervision.tests(id),
         tokens: this.supervision.usage(id),
         pulls: this.delivery
@@ -352,9 +364,11 @@ export class Host {
     throw Error('Unknown operation')
   }
   private binding(owner: string) {
-    return this.db.prepare('SELECT * FROM host_sessions WHERE owner=?').get(owner) as unknown as
-      | SessionRow
-      | undefined
+    return this.db
+      .prepare(
+        'SELECT host_sessions.*,requestedModel FROM host_sessions LEFT JOIN host_model_choice USING(owner) WHERE owner=?',
+      )
+      .get(owner) as unknown as SessionRow | undefined
   }
   private async session(owner: string): Promise<Live> {
     const live = this.live.get(owner)
@@ -382,7 +396,9 @@ export class Host {
     const saved = this.setting('model:' + (main ? 'main' : 'worker'))
     const override =
       saved === undefined ? (main ? cfg.mainModel : cfg.workerModel) : String(saved) || undefined
-    const model = existing?.model ?? override ?? (cfg.provider === 'deepseek' ? 'deepseek-flash' : undefined)
+    const model = existing
+      ? (existing.model ?? existing.requestedModel ?? undefined)
+      : (override ?? (cfg.provider === 'deepseek' ? 'deepseek-flash' : undefined))
     try {
       if (retained?.environment) {
         workspace = retained.workspace
@@ -423,14 +439,15 @@ export class Host {
         LANG: 'C.UTF-8',
         [cfg.provider === 'deepseek' ? 'DEEPSEEK_API_KEY' : 'OPENAI_API_KEY']: apiKey,
       }
-      const launcher = environment
-        ? environment.appServer()
-        : {
-            command: cfg.codex,
-            cwd: mainCwd,
-            env: homeEnv,
-            args: cfg.provider === 'deepseek' ? deepseekArgs(model) : ['app-server', '--stdio'],
-          }
+      if (main && !this.mainTransport) {
+        this.mainTransport = await openMainTransport({
+          bin: cfg.codex,
+          cwd: mainCwd,
+          env: homeEnv,
+          args: cfg.provider === 'deepseek' ? deepseekArgs(model) : ['app-server', '--stdio'],
+        })
+      }
+      const launcher = environment ? environment.appServer() : this.mainTransport!.descriptor
       session = await CodexSession.connect({
         ...launcher,
         role: main ? 'main' : 'worker',
@@ -479,6 +496,23 @@ export class Host {
       this.db
         .prepare('INSERT OR IGNORE INTO host_sessions VALUES(?,?,?,?)')
         .run(owner, opened.threadId, opened.model ?? null, override ? 'role override' : 'runtime default')
+      if (!existing) this.db.prepare('INSERT INTO host_model_choice VALUES(?,?)').run(owner, model ?? null)
+      if (environment && workspace)
+        this.db
+          .prepare(
+            'INSERT INTO host_environment(ticket,assignment,imageRef,imageId,codexVersion,directory,branch,baseBranch,baseCommit) VALUES(?,?,?,?,?,?,?,?,?)',
+          )
+          .run(
+            owner,
+            this.domain.store.tickets.get(owner)?.assignments.at(-1)?.id ?? null,
+            cfg.image,
+            environment.imageId,
+            environment.codexVersion,
+            workspace.directory,
+            workspace.branch ?? null,
+            workspace.baseBranch ?? null,
+            workspace.baseCommit ?? null,
+          )
       const result = { session, environment, workspace }
       this.live.set(owner, result)
       if (!this.reconciling.has(owner)) this.disconnected.delete(owner)
@@ -1088,6 +1122,7 @@ export class Host {
         await l.environment?.close()
       }),
     )
+    await this.mainTransport?.close()
     this.domain.close()
   }
 }

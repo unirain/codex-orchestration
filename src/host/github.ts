@@ -11,7 +11,6 @@ export interface GithubConfig {
   account: string
   gh: string
   configDir: string
-  localLoginTestRepo?: string
 }
 export interface Ref {
   ticket: string
@@ -64,10 +63,7 @@ export class GitHub implements Remote {
       throw Error('Invalid repository binding')
     if (![config.gh, config.configDir].every(isAbsolute))
       throw Error('Dedicated gh executable and config directory must be absolute')
-    if (
-      realpathSync(config.configDir) === homedir() + '/.config/gh' &&
-      config.localLoginTestRepo !== config.repo
-    )
+    if (realpathSync(config.configDir) === homedir() + '/.config/gh')
       throw Error('Use a dedicated gh config directory')
     this.config = { ...config, configDir: realpathSync(config.configDir), gh: realpathSync(config.gh) }
     this.env = {
