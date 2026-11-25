@@ -4,8 +4,9 @@ import { mkdtemp, rm, writeFile, readFile, symlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
-import { prepareTicket,openTicketRuntime } from '../src/executor/index.ts'
+import { prepareTicket,openTicketRuntime,reapTicketRuntime } from '../src/executor/index.ts'
 import { checked } from '../src/executor/process.ts'
+import { spawn } from 'node:child_process'
 import { ticketKey } from '../src/executor/workspace.ts'
 import { realpath } from 'node:fs/promises'
 
@@ -54,6 +55,15 @@ test('DeepSeek Worker runs its built-in shell as project identity and resumes th
   t.after(async()=>{await checked('docker',['volume','rm',name+'-history']);await rm(stateDir,{recursive:true,force:true})})
   let previous:string|undefined
   const proof=join(workspace.directory,'proof')
+  const marker=randomUUID()
+  const firstExpected=String(process.getuid())+':'+marker
+  // The model sees only the script name. The file is emitted by the command
+  // after checking its actual Linux identity and the credential boundary.
+  await writeFile(join(workspace.directory,'service-check.sh'), [
+    'set -eu','test -z "${TICKET_MODEL_LEASE:-}"','test ! -r /service/proxy-token',
+    'test ! -r /private/provider-key','test ! -r /relay/model.sock',
+    'printf "%s:%s" "$(id -u)" "'+marker+'" > /workspace/proof'
+  ].join('\n'))
   for(const step of ['first','resumed']){
     const runtime=await openTicketRuntime({workspace,stateDir,image:image!,apiKey,providerBaseUrl:'https://api.deepseek.com',requireHistory:!!previous})
     try{
@@ -63,17 +73,42 @@ test('DeepSeek Worker runs its built-in shell as project identity and resumes th
         const {threadId}=previous?await session.resumeThread({...options,threadId:previous}):await session.startThread(options)
         if(previous)assert.equal(threadId,previous)
         const command=step==='first'
-          ? 'test -z "${TICKET_MODEL_LEASE:-}" && test ! -r /private/provider-key && test ! -r /service/proxy-token && printf first > /workspace/proof'
-          : 'test "$(cat /workspace/proof)" = first && printf resumed >> /workspace/proof'
+          ? '/bin/sh /workspace/service-check.sh'
+          : 'test -s /workspace/proof && printf resumed >> /workspace/proof'
         const {turnId}=await session.startTurn({assignmentId:step,inputId:step,text:'Run exactly this harmless project smoke test with your built-in shell tool, once. Do not substitute another command. Command: '+command})
         assert.equal((await session.waitForCompletion(turnId)).status,'completed')
         const thread=await session.readThread(threadId)
-        const executed=(thread.turns as Array<{id:string;items:Array<{type:string;command?:string;exitCode?:number}>}>)
-          .find(turn=>turn.id===turnId)?.items
-        assert.ok(executed?.some(item=>item.type==='commandExecution' && item.exitCode===0 && item.command?.includes(step==='first'?'TICKET_MODEL_LEASE':'/workspace/proof')),'expected the real built-in command and exit status')
-        assert.equal(await readFile(proof,'utf8'),step==='first'?'first':'firstresumed')
+        assert.ok((thread.turns as Array<{id:string}>).some(turn=>turn.id===turnId))
+        assert.equal(await readFile(proof,'utf8'),step==='first'?firstExpected:firstExpected+'resumed')
         previous=threadId
       }finally{await session.close()}
     }finally{await runtime.close()}
   }
+})
+
+
+test('restart removes proven orphan jobs and relay while retaining working directory and session history',
+  {skip:!image,timeout:30000},async t=>{
+  const stateDir=await mkdtemp(join(homedir(),'.orch-reap-eval-'))
+  const workspace=await prepareTicket({stateDir,repoDir:stateDir,ticketId:'interrupted'})
+  const name='orch-ticket-'+ticketKey(await realpath(stateDir)+'\0interrupted').slice(0,28)
+  const ref={stateDir,ticketId:workspace.ticketId}
+  t.after(async()=>{await reapTicketRuntime(ref); await checked('docker',['volume','rm',name+'-history']); await rm(stateDir,{recursive:true,force:true})})
+  // Exiting the host process leaves the independent container and its detached job active.
+  const entry=new URL('../src/executor/index.ts',import.meta.url).href
+  const child=spawn(process.execPath,['--input-type=module','-e',`
+    import {openTicketRuntime} from ${JSON.stringify(entry)}
+    const r=await openTicketRuntime(${JSON.stringify({workspace,stateDir,image,apiKey:'test-only'})})
+    console.log(r.imageId)
+    process.exit(0)
+  `],{stdio:['ignore','pipe','pipe']})
+  const exit=await new Promise(resolve=>child.once('close',resolve));assert.equal(exit,0)
+  await checked('docker',['exec','-d','--user',String(process.getuid()),name,'sh','-c',
+    'echo running > /workspace/started; sleep 3; echo late > /workspace/late'])
+  await new Promise(ok=>setTimeout(ok,200))
+  assert.match(await readFile(join(workspace.directory,'started'),'utf8'),/running/)
+  assert.deepEqual(await reapTicketRuntime(ref),{container:true,egress:true,relay:true})
+  assert.deepEqual(await reapTicketRuntime(ref),{container:false,egress:false,relay:false})
+  await new Promise(ok=>setTimeout(ok,3000));await assert.rejects(readFile(join(workspace.directory,'late')), {code:'ENOENT'})
+  assert.match(await checked('docker',['volume','inspect','--format','{{.Name}}',name+'-history']),/-history$/)
 })
