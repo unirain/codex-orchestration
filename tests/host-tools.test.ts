@@ -37,6 +37,13 @@ test('Main binds commands to the actual batch and replays a successful receipt e
   assert.deepEqual(reconnected.replay(ctx,args),{value:result})
   assert.equal(reconnected.replay({...ctx,ticketId:'foreign'},args),undefined)
   assert.equal(reconnected.replay(ctx,{...args,scope:'changed'}),undefined)
+  // A successful call made under the older receipt layout can still be proved
+  // from its unique original host dispatch without reissuing the decision.
+  f.d.db.exec('DELETE FROM tool_receipt_assignments; CREATE TABLE host_turns(owner,assignment,turn); CREATE TABLE host_sessions(owner,thread)')
+  assert.equal(reconnected.replay(ctx,args),undefined)
+  f.d.db.prepare("INSERT INTO host_turns VALUES('main',?,?)").run(ctx.assignmentId,ctx.turnId)
+  f.d.db.prepare("INSERT INTO host_sessions VALUES('main',?)").run(ctx.threadId)
+  assert.deepEqual(reconnected.replay(ctx,args),{value:result})
   assert.ok(result.ticketId)
   assert.equal(f.d.store.tickets.list().length,1)
   await assert.rejects(handlers.call(ctx,{...args,scope:'other'}),/Conflicting callback/)

@@ -52,8 +52,18 @@ export class RoleHandlers {
 
   replay(ctx: ReplayContext, args: Args): SavedReply | undefined {
     const id = JSON.stringify([ctx.threadId,ctx.turnId,ctx.callId])
-    const row = this.domain.db.prepare('SELECT digest,response,assignment FROM tool_receipts JOIN tool_receipt_assignments USING(id) WHERE id=? AND response IS NOT NULL').get(id)
-    if (!row || signature({...ctx,assignmentId:String(row.assignment)},args) !== row.digest) return
+    const db = this.domain.db
+    const row = db.prepare('SELECT digest,response,assignment FROM tool_receipts LEFT JOIN tool_receipt_assignments USING(id) WHERE id=? AND response IS NOT NULL').get(id)
+    if (!row) return
+    let assignment = row.assignment
+    // Receipts already written before the explicit assignment index retain
+    // their original digest. Use a uniquely bound dispatch as corroboration.
+    if (assignment === null && db.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('host_turns','host_sessions')").get()?.n === 2) {
+      const bindings = db.prepare('SELECT DISTINCT t.assignment FROM host_turns t JOIN host_sessions s USING(owner) WHERE t.owner=? AND s.thread=? AND t.turn=?')
+        .all(ctx.ticketId ?? 'main',ctx.threadId,ctx.turnId)
+      if (bindings.length === 1) assignment = bindings[0].assignment
+    }
+    if (typeof assignment !== 'string' || signature({...ctx,assignmentId:assignment},args) !== row.digest) return
     return {value:JSON.parse(String(row.response))}
   }
 
