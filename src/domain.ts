@@ -61,7 +61,17 @@ export function openDomain(path: string, options: DomainOptions) {
       repo: store, policy, now: options.now,
       scope: { scope: value => admittedSource(value as Trigger, options.actorId)
         ? { listened: true, observed: false } : { listened: false, reason: 'outsideTerminalScope' } },
-      emit: event => store.record('event', 'ticketId' in event.data ? event.data.ticketId : 'threadKey' in event.data ? event.data.threadKey : '', event),
+      emit: event => {
+        store.record('event', 'ticketId' in event.data ? event.data.ticketId : 'threadKey' in event.data ? event.data.threadKey : '', event)
+        if(event.type==='ticket.ended'){
+          const ticket=store.tickets.get(event.data.ticketId)
+          if(ticket?.ended && ticket.channels[0]){
+            const id=key('ticket-result',ticket.id,ticket.assignments.at(-1)!.id,ticket.ended.outcome)
+            effects.add({id,kind:'send',message:{id,channel:ticket.channels[0],kind:'notice',ticketId:ticket.id,
+              text:ticket.title+' · ended/'+ticket.ended.outcome}})
+          }
+        }
+      },
       assessor: {
         request: candidate => effects.add({ kind: 'assess', id: key('assess',candidate.evalId), candidate }),
         release: evalId => effects.withdraw(key('assess',evalId)),

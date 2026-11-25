@@ -8,7 +8,7 @@ import type {Config} from './config.ts'
 import {CodexSession,ConnectionLost} from '../codex/session.ts'
 import type {ToolContext,SessionEvent} from '../codex/session.ts'
 import {deepseekArgs} from '../codex/deepseek.ts'
-import {prepareTicket,openTicketRuntime} from '../executor/index.ts'
+import {prepareTicket,openTicketRuntime,reapTicketRuntime} from '../executor/index.ts'
 import type {Workspace} from '../executor/workspace.ts'
 import {RoleHandlers,MAIN_INSTRUCTIONS,WORKER_INSTRUCTIONS} from './tools.ts'
 import {Supervision} from './supervision.ts'
@@ -95,6 +95,13 @@ export class Host {
     return !!t&&!t.ended&&t.assignments.at(-1)?.id===c.assignmentId&&!this.supervision.isPaused(owner)
   }
   async initialize(){
+    const interrupted=this.db.prepare("SELECT DISTINCT ticketId FROM worker_test WHERE status='running'").all()
+    for(const r of interrupted){
+      const id=String(r.ticketId)
+      await reapTicketRuntime({stateDir:this.dir,ticketId:id})
+      for(const run of this.supervision.tests(id).filter(t=>t.status==='running'))
+        this.supervision.finishTest(run.id,{status:'unknown'})
+    }
     if(this.remote){try{await this.remote.verify();this.clear('github')}catch(e){this.fault('github',e)}}
     for(const t of this.domain.store.tickets.open().reverse())if(t.assignments.at(-1)?.state==='running')
       this.db.prepare('INSERT OR IGNORE INTO host_recovery VALUES(?)').run(t.id)
@@ -115,6 +122,11 @@ export class Host {
       this.db.prepare("INSERT OR REPLACE INTO host_settings VALUES('allow-write',?)").run(action==='grant'?'yes':'no')
       return {repository:this.config.repository,remoteWrites:action==='grant'}
     }
+    if(action==='events'){
+      const after=Number(b.after??0)
+      if(!Number.isSafeInteger(after)||after<0)throw Error('Invalid event cursor')
+      return this.db.prepare('SELECT rowid AS seq,* FROM host_messages WHERE rowid>? ORDER BY rowid LIMIT 100').all(after)
+    }
     if(action==='status')return {
       repo:this.config.repository,thread:'terminal:default',tickets:this.domain.store.tickets.list().map(t=>({
         id:t.id,title:t.title,status:t.ended?.outcome??(this.supervision.isPaused(t.id)?'paused':t.assignments.at(-1)?.report?.state??t.assignments.at(-1)?.state),
@@ -122,7 +134,10 @@ export class Host {
       faults:this.db.prepare('SELECT * FROM host_faults').all(),mainTokens:this.supervision.usage(),occupied:this.supervision.occupied(),remoteWrites:this.setting('allow-write')==='yes'}
     const id=String(b.ticket??''),t=this.domain.store.tickets.get(id)
     if(!t)throw Error('Unknown Ticket')
-    if(action==='show')return {ticket:t,session:this.binding(id),tests:this.supervision.tests(id),tokens:this.supervision.usage(id),runs:this.db.prepare('SELECT id,turn,state,attempt FROM host_turns WHERE owner=?').all(id)}
+    if(action==='show')return {ticket:t,session:this.binding(id),tests:this.supervision.tests(id),tokens:this.supervision.usage(id),
+      pulls:this.delivery?this.db.prepare('SELECT number,settled FROM tracked_pr WHERE ticket=?').all(id):[],
+      deliveries:this.delivery?this.db.prepare('SELECT commit_sha,push_state,pr,done FROM remote_ops WHERE ticket=?').all(id):[],
+      deniedTargets:await this.live.get(id)?.environment?.deniedTargets()??[],runs:this.db.prepare('SELECT id,turn,state,attempt FROM host_turns WHERE owner=?').all(id)}
     if(action==='clear-excerpts'){this.supervision.clearExcerpts(id);return {cleared:id}}
     if(t.ended)throw Error('Ticket ended')
     if(action==='pause'){this.supervision.pause(id);await this.interrupt(id);return {paused:id}}

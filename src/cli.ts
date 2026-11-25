@@ -52,11 +52,23 @@ async function main(args:string[]){
   async function command(name:string,body:Record<string,unknown>){console.log(JSON.stringify(await invoke(info!,name,body),null,2))}
   if(!action||action==='chat'){
     const input=createInterface({input:process.stdin,output:process.stdout})
+    let cursor=0,reading=false
+    const readMessages=async()=>{
+      if(reading)return
+      reading=true
+      try{for(const row of await invoke(info!,'events',{after:cursor})){
+        console.log((row.ticket?'['+row.ticket+'] ':'')+row.text)
+        cursor=row.seq
+      }}catch(e){console.error((e as Error).message)}finally{reading=false}
+    }
+    await readMessages()
+    const listen=setInterval(()=>void readMessages(),750)
     try{for await(const line of input){
       if(line==='/exit')break
       if(line==='/status')await command('status',{})
+      else if(/^\/(show|pause|resume|clear-excerpts)\s+\S+$/.test(line)){const [name,ticket]=line.slice(1).split(/\s+/);await command(name,{ticket})}
       else if(line.trim())await command('say',{id:randomUUID(),text:line})
-    }}finally{input.close()}
+    }}finally{clearInterval(listen);input.close()}
   }else if(action==='say')await command(action,{id:randomUUID(),text:words.join(' ')})
   else if(['status','grant','revoke','stop'].includes(action))await command(action,{})
   else if(['show','pause','resume','clear-excerpts'].includes(action)&&words[0])await command(action,{ticket:words[0]})
