@@ -60,7 +60,10 @@ export class DomainStore implements Repositories {
     get: (id: string) => this.get<Trigger>('domain_trigger', id),
     save: (v: Trigger) => { this.db.prepare('INSERT INTO domain_trigger VALUES (?,?)').run(v.id, JSON.stringify(v)) },
     disposition: (id: string) => this.get<TriggerDisposition>('domain_disposition', id),
-    saveDisposition: (id: string, v: TriggerDisposition) => this.save('domain_disposition', id, v),
+    saveDisposition: (id: string, v: TriggerDisposition) => {
+      this.save('domain_disposition', id, v)
+      this.record('disposition', id, v)
+    },
   }
   readonly threads = {
     get: (id: string) => this.get<Thread>('domain_thread', id),
@@ -70,7 +73,17 @@ export class DomainStore implements Repositories {
   }
   readonly tickets = {
     get: (id: string) => this.get<Ticket>('domain_ticket', id),
-    save: (v: Ticket) => this.save('domain_ticket', v.id, v),
+    save: (v: Ticket) => {
+      const last = v.assignments.at(-1)
+      const previous = this.tickets.get(v.id)
+      if (last?.report && JSON.stringify(previous?.assignments.at(-1)?.report) !== JSON.stringify(last.report)) {
+        this.record('report', v.id, { assignmentId: last.id, ...last.report })
+      }
+      if (JSON.stringify(previous?.attention) !== JSON.stringify(v.attention)) {
+        this.record('attention', v.id, { assignmentId: last?.id, attention: v.attention ?? null })
+      }
+      this.save('domain_ticket', v.id, v)
+    },
     list: () => this.rows<Ticket>('domain_ticket', '1', [], 'rowid DESC'),
     open: () => this.rows<Ticket>('domain_ticket', "json_type(value,'$.ended') IS NULL", [], 'rowid DESC'),
     active: () => this.rows<Ticket>('domain_ticket', "json_array_length(value,'$.undelivered')>0 OR json_extract(value,'$.assignments[#-1].state') IN ('pending','running')", [], 'rowid DESC'),

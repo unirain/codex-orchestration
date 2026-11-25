@@ -109,12 +109,18 @@ export class Engine {
    * once unless processing is paused.
    * @throws UserError for a ticket a person stopped, which withdrew its Mandate, or one whose Mandate the Policy no longer holds.
    */
-  attach(ticketId: string, triggerId: string, note?: string): Ticket {
+  attach(ticketId: string, triggerId: string, note?: string, evalId?: string): Ticket {
     return this.repo.atomic(() => {
+      const trigger = this.repo.triggers.get(triggerId)
+      if (!trigger || this.repo.triggers.disposition(triggerId)?.filtered) throw new UserError('notAdmissible', { reason: 'outsideTerminalScope' })
+      const candidate = this.candidate(triggerId)
+      if (evalId && (candidate?.evalId !== evalId || candidate.policyVersion !== this.options.policy().version)) {
+        throw new UserError('evalFinished', { eval: evalId })
+      }
       // A message this ticket's worker handed back is not its work: attached here, no worker would decide it, and it could not be handed back again.
       const handedBack = this.repo.triggers.disposition(triggerId)?.handbacks?.some(item => item.ticketId === ticketId)
       if (handedBack) throw new UserError('handedBackHere')
-      const trigger = this.tickets.attachable(ticketId, triggerId)
+      this.tickets.attachable(ticketId, triggerId)
       this.evals.withdraw(trigger)
       this.tickets.attach(ticketId, trigger, note)
       this.evals.routed(triggerId, ticketId)
