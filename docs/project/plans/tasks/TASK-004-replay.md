@@ -1,10 +1,10 @@
-# TASK-001 · 建立路由测试入口
+# TASK-004 · 双任务重放与演示
 
-ID: TASK-001
-Status: READY FOR AGENT
-Parent: EN-001
-Requirements: DR-001、DR-002、AC-006
-Depends on: None
+ID: TASK-004
+Status: BLOCKED
+Parent: FEAT-001
+Requirements: FR-001、FR-002、AI-001、AC-001、AC-007
+Depends on: TASK-003
 Parallel group: None
 Parallelization class: Sequential
 Primary engineer: 项目发起人负责里程碑验收
@@ -17,7 +17,7 @@ Repository: unirain/codex-orchestration
 Base revision: 7784b441860f762ed9e1011f072d3779c3f67043
 Branch: work/routing-demo，顺序累积上游修订
 Worktree: 相邻目录 codex-orchestration-routing-demo，单写入者
-Expected write set: 本地 TypeScript 测试入口、测试依赖清单、临时库工厂与三个记录端口
+Expected write set: 双任务场景夹具、演示入口与只读证据输出
 Protected files/surfaces: 规格、原型 checkout、真实账号凭据、宿主 GitHub 写入
 Shared contracts: Trigger ID、Ticket 与 Assignment 标识、SQLite 提交边界及 Assessor/Executor/Channel 端口
 Delegation level: D3
@@ -29,7 +29,7 @@ Human checkpoint: GATE-001 完整双任务演示走读
 
 ## Objective
 
-建立可重复运行的领域测试环境。
+让发起人能从三句话复核路由。
 
 ## Execution Context
 
@@ -41,15 +41,15 @@ Human checkpoint: GATE-001 完整双任务演示走读
 
 ## Planned Steps
 
-探查 TS 与 SQLite 支持，选用与仓库约束兼容的最小组合；建立两个独立临时库，记录 Assessor、Executor、Channel 收到的载荷与次数。
+从空库录入主计划中的三条消息；固定模拟 Worker 对消息的接手／交回响应，关联查询真实 Engine 写入的 SQLite 记录；另跑归属含糊的补充。
 
 ## Tests and Evals
 
-同一夹具重放两次，断言输入相同、初态为空且两次运行没有共享记录。将可从干净 checkout 执行的确切测试命令写入交接。
+两张 Ticket、两份不同 Mandate、两次启动请求；第三条追问产生零次新 Eval。含糊追问发出澄清且无猜测出的变更。
 
 ## Completion Evidence
 
-可重复执行的命令、运行输出、SQLite 版本与端口记录示例。
+一条可重放命令、两张 Ticket 的事件记录和原型测试对照。
 
 ## Stop Conditions
 
@@ -61,4 +61,4 @@ Human checkpoint: GATE-001 完整双任务演示走读
 
 ## Required Handoff
 
-按[执行报告模板](../../.agents/skills/plan-readiness/assets/templates/agent-execution-report.md)交接实际修订、改动文件、命令、结果及偏差，供下一任务从同一工作现场续接。
+按[执行报告模板](../../../../.agents/skills/plan-readiness/assets/templates/agent-execution-report.md)交接实际修订、改动文件、命令、结果及偏差，供下一任务从同一工作现场续接。

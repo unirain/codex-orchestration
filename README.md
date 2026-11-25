@@ -4,9 +4,9 @@
 
 ## 文档
 
-- [intent.md](intent.md) — 项目意图与范围
-- [spec.md](spec.md) — 系统规格
-- [plan.md](plan.md) — 已批准的实施顺序与任务契约
+- [intent.md](docs/project/intent.md) — 项目意图与范围
+- [spec.md](docs/project/spec.md) — 系统规格
+- [plan.md](docs/project/plan.md) — 已批准的实施顺序与任务契约
 - [验收证据](docs/acceptance.md) — 44 项有效验收的实测环境及复跑入口
 - [UML 架构图集](docs/uml/README.md) — 组件、领域对象、消息路由、后台接续、PR 收尾与重启恢复
 

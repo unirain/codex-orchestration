@@ -61,4 +61,4 @@ Human checkpoint: GATE-001 完整双任务演示走读
 
 ## Required Handoff
 
-按[执行报告模板](../../.agents/skills/plan-readiness/assets/templates/agent-execution-report.md)交接实际修订、改动文件、命令、结果及偏差，供下一任务从同一工作现场续接。
+按[执行报告模板](../../../../.agents/skills/plan-readiness/assets/templates/agent-execution-report.md)交接实际修订、改动文件、命令、结果及偏差，供下一任务从同一工作现场续接。

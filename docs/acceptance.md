@@ -1,6 +1,6 @@
 # 首版验收证据
 
-依据[规格 v0.46](../spec.md#acceptance-scenarios)。表中的「实测」标明实际使用的运行环境，「受控」表示该用例所需的时间、消息或故障由测试提供。「部分」说明还有条件缺少证据。AC-024、AC-025 已在规格中后置，首版共有 44 项有效验收。
+依据[规格 v0.46](project/spec.md#acceptance-scenarios)。表中的「实测」标明实际使用的运行环境，「受控」表示该用例所需的时间、消息或故障由测试提供。「部分」说明还有条件缺少证据。AC-024、AC-025 已在规格中后置，首版共有 44 项有效验收。
 
 ## 当前验证结果
 
@@ -70,7 +70,7 @@ ORCH_DEEPSEEK_LIVE=1 CODEX_TEST_BIN=/absolute/path/to/codex-0.171.0 \
 | AC-021 | 真实容器通过获准包源安装依赖。DeepSeek Worker 缺少必需依赖时，未获准目的地未收到请求，终端展示包名、目标主机、端口和需要用户处理的原因。 | [容器与代理](../tests/executor-container.test.ts) · [真实 Worker 的 Attention](../tests/executor-dependency-attention.test.ts) |
 | AC-022 | 真实容器与本地 TLS 测试服务按完整主机及端口授权，测试重定向、CONNECT、子域及通配规则。 | [TLS 包源](../tests/executor-container.test.ts) · [网络规则](../tests/executor-network.test.ts) |
 | AC-023 | 实际运行两组各三次失败，调用真实 DeepSeek 判断下一步，分别观察到有区分力的复测和列出所需信息后暂停。 | [模型行为](../tests/audit-stalled-model.test.ts) · [持久记录](../tests/supervision.test.ts) |
-| AC-024 / AC-025 | 逐 Ticket 配额与预算宽限在 v0.46 后置。 | [规格](../spec.md#llm-and-model-strategy) |
+| AC-024 / AC-025 | 逐 Ticket 配额与预算宽限在 v0.46 后置。 | [规格](project/spec.md#llm-and-model-strategy) |
 | AC-026 | 使用可控时钟从 turn 结束开始算 30 分钟；重开 turn/暂停撤销旧窗口，重复终态不误释放当前槽位。实际进程终止另有 Docker 证据。 | [计时](../tests/supervision.test.ts) · [实际取消](../tests/executor-container.test.ts) |
 | AC-027 | 真实 Linux Codex 通过原生文件 RPC、shell 及搜索读取本 Ticket 源码。受控 HTTPS 模型服务捕获全部 5 份请求，均无另一 Ticket 或外部 SDK 的标记。用户在下一轮明确提供的 SDK 声明在同一 thread 被使用。 | [跨容器隔离](../tests/executor-container.test.ts) · [完整模型输入](../tests/executor-source-context.test.ts) |
 | AC-028 | 实际 Docker 并发验证不同文件、凭据、网络和取消；用实际 SQLite 验证暂停的作业能收尾。 | [容器](../tests/executor-container.test.ts) · [暂停](../tests/supervision.test.ts) |

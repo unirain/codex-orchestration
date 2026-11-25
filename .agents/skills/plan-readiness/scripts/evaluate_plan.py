@@ -109,6 +109,9 @@ def detect_type(text: str) -> str | None:
 def collect_files(target: Path) -> tuple[Path, list[Path]]:
     if target.is_file():
         return target, [target]
+    project_docs = target / "docs" / "project"
+    if not (target / "plan.md").exists() and (project_docs / "plan.md").is_file():
+        target = project_docs
     master = target / "plan.md"
     if not master.exists():
         raise FileNotFoundError(f"Missing master plan: {master}")

@@ -17,7 +17,7 @@ Base revision: 7784b441860f762ed9e1011f072d3779c3f67043
 
 ## System Decomposition
 
-Source/Channel 持有来源对话地址；Engine 管理 Gate、Eval、Mandate、订阅和事务；Assessor 驱动 Main；Executor 管理 Ticket 的 Worker、槽位与测试。宿主保存外部操作回执，以专用账号写 GitHub。[架构图集](docs/uml/README.md)
+Source/Channel 持有来源对话地址；Engine 管理 Gate、Eval、Mandate、订阅和事务；Assessor 驱动 Main；Executor 管理 Ticket 的 Worker、槽位与测试。宿主保存外部操作回执，以专用账号写 GitHub。[架构图集](../uml/README.md)
 
 ## Foundation and Enabler Register
 
@@ -43,7 +43,7 @@ Source/Channel 持有来源对话地址；Engine 管理 Gate、Eval、Mandate、
 
 ### FEAT-001 · 双任务路由
 
-原型的领域模型、接收逻辑和 Eval 可以与执行器分开阅读。先验收路由，可以单独定位订阅扇出、全部交回和原子接单的问题。真实 Codex 回调、容器重建及凭据隔离是本地适配，前一阶段的测试替身无法验证它们。[规格中的原型对照](spec.md#2026-11-20-原型对照复盘) · [架构图集](docs/uml/README.md)
+原型的领域模型、接收逻辑和 Eval 可以与执行器分开阅读。先验收路由，可以单独定位订阅扇出、全部交回和原子接单的问题。真实 Codex 回调、容器重建及凭据隔离是本地适配，前一阶段的测试替身无法验证它们。[规格中的原型对照](spec.md#2026-11-20-原型对照复盘) · [架构图集](../uml/README.md)
 
 2026-11-23，项目发起人选择 A，确认先展示同一入口下的两项工作正确分流，再验证真实 Codex Worker。原型测试向真实 Engine 注入可控的 Assessor 和 Executor，可分别观察评估、启动和投递次数。本项目用同样的方法验证路由，同时用临时 SQLite 数据库观察真实接单事务的提交与回滚。[原型 Engine 测试](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9d/tests/core-engine.spec.ts#L20) · [原型多 Worker 交回测试](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9d/tests/followups.spec.ts#L80)
 
