@@ -95,7 +95,7 @@ test(
     let previous: string | undefined
     const proof = join(workspace.directory, 'proof')
     const marker = randomUUID()
-    const firstExpected = String(process.getuid()) + ':' + marker
+    const firstExpected = String(process.getuid!()) + ':' + marker
     // The model sees only the script name. The file is emitted by the command
     // after checking its actual Linux identity and the credential boundary.
     await writeFile(
@@ -204,7 +204,7 @@ test(
       'exec',
       '-d',
       '--user',
-      String(process.getuid()),
+      String(process.getuid!()),
       name,
       'sh',
       '-c',

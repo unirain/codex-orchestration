@@ -11,6 +11,7 @@ import {intervals,retryable} from '../codex/retry.ts'
 import {deepseekArgs} from '../codex/deepseek.ts'
 import {prepareTicket,openTicketRuntime,reapTicketRuntime} from '../executor/index.ts'
 import type {Workspace} from '../executor/workspace.ts'
+import {observeDispatch} from './reattach.ts'
 import {prepareStore,formatVersion} from './storage.ts'
 import {RoleHandlers,MAIN_INSTRUCTIONS,WORKER_INSTRUCTIONS} from './tools.ts'
 import {Supervision} from './supervision.ts'
@@ -42,6 +43,8 @@ export class Host {
   private tests=new Map<string,{abort:AbortController;done:Promise<void>}>()
   private preparing=new Map<string,Promise<Live>>()
   private reconciling=new Set<string>()
+  private disconnected=new Map<string,Live>()
+  private observing=new Map<string,number>()
   private sleeping=new Map<string,number>()
   constructor(config:Config,dir:string){
     this.config=config;this.dir=dir
@@ -128,6 +131,11 @@ export class Host {
       this.db.prepare("INSERT OR REPLACE INTO host_settings VALUES('allow-write',?)").run(action==='grant'?'yes':'no')
       return {repository:this.config.repository,remoteWrites:action==='grant'}
     }
+    if(action==='reassess'){
+      const id=String(b.trigger??'')
+      this.sleeping.delete(MAIN)
+      return {trigger:id,queued:this.domain.engine.reevaluate(id)}
+    }
     if(action==='role-model'){
       if(!['main','worker'].includes(String(b.role))||typeof b.model!=='string'||b.model.length>128)throw Error('Expected role and model name')
       this.db.prepare('INSERT OR REPLACE INTO host_settings VALUES(?,?)').run('model:'+b.role,b.model)
@@ -197,7 +205,7 @@ export class Host {
     const p=this.open(owner).finally(()=>this.preparing.delete(owner));this.preparing.set(owner,p);return p
   }
   private async open(owner:string):Promise<Live>{
-    const main=owner===MAIN, cfg=this.config, existing=this.binding(owner)
+    const main=owner===MAIN, cfg=this.config, existing=this.binding(owner), retained=this.disconnected.get(owner)
     const apiKey=process.env[cfg.modelKeyEnv]
     if(!apiKey)throw Error('Model service credential unavailable: '+cfg.modelKeyEnv)
     let environment:Environment|undefined, workspace:Workspace|undefined,session:CodexSession|undefined
@@ -207,7 +215,8 @@ export class Host {
     const override=saved===undefined?(main?cfg.mainModel:cfg.workerModel):(String(saved)||undefined)
     const model=existing?.model??override??(cfg.provider==='deepseek'?'deepseek-flash':undefined)
     try{
-      if(!main){
+      if(retained?.environment){workspace=retained.workspace;environment=retained.environment}
+      else if(!main){
         const gh=cfg.github
         const gitEnv=gh?{GH_CONFIG_DIR:gh.configDir,GH_HOST:'github.com',GIT_CONFIG_COUNT:'1',GIT_CONFIG_KEY_0:'credential.https://github.com.helper',
           GIT_CONFIG_VALUE_0:'!'+ "'"+gh.gh.replaceAll("'","'\\''")+"'" +' auth git-credential'}:{}
@@ -244,8 +253,9 @@ export class Host {
       this.db.prepare('INSERT OR IGNORE INTO host_sessions VALUES(?,?,?,?)').run(owner,opened.threadId,opened.model??null,override?'role override':'runtime default')
       const result={session,environment,workspace}
       this.live.set(owner,result)
+      if(!this.reconciling.has(owner))this.disconnected.delete(owner)
       return result
-    }catch(e){await session?.close().catch(()=>{});await environment?.close().catch(()=>{});throw e}
+    }catch(e){await session?.close().catch(()=>{});if(!retained)await environment?.close().catch(()=>{});throw e}
   }
   private async interrupt(owner:string){
     const session=this.live.get(owner)?.session
@@ -349,13 +359,9 @@ export class Host {
       this.db.prepare('INSERT OR IGNORE INTO host_recovery VALUES(?)').run(owner)
       this.fault(owner,'App Server disconnected; checking persisted session before any replay.')
       const old=this.live.get(owner);this.live.delete(owner)
-      // The environment must release the previous session before recreation.
-      if(old?.environment)this.deferCleanup(owner,old.environment.close())
+      // Only the adapter connection was lost. Keep the original ticket environment and its background jobs.
+      if(old)this.disconnected.set(owner,old)
     }
-  }
-  private cleanup=new Map<string,Promise<void>>()
-  private deferCleanup(owner:string,done:Promise<void>){
-    this.cleanup.set(owner,done.catch(e=>this.fault(owner,e)).finally(()=>this.cleanup.delete(owner)))
   }
   private failedAttempt(r:Call,reason:string){
     this.fault(r.owner,'Attempt '+(r.attempt+1)+': '+reason)
@@ -407,7 +413,7 @@ export class Host {
       if(this.domain.store.tickets.get(owner)?.ended)await this.drop(owner)
       return
     }
-    if(this.sleeping.get(owner)!>Date.now()||this.cleanup.has(owner)||this.reconciling.has(owner)||
+    if(this.sleeping.get(owner)!>Date.now()||this.reconciling.has(owner)||
       this.db.prepare('SELECT 1 FROM host_recovery WHERE owner=?').get(owner))return 'defer'
     if(this.db.prepare("SELECT 1 FROM host_turns WHERE id=? AND state NOT IN ('prepared')").get(effect.id))return
     if(this.waiting(owner))return 'defer'
@@ -442,6 +448,15 @@ export class Host {
     }catch(e){
       this.fault(owner,e)
       if(!main&&!this.waiting(owner))this.supervision.release(owner,assignment)
+      if(!this.waiting(owner)&&!this.stop){
+        if(!main){
+          this.domain.engine.report(owner,{state:'blocked',summary:'Ticket environment could not start.',question:'Correct the recorded executor or service error, then resume this Ticket.'})
+          this.supervision.pause(owner)
+        }else if(effect.kind==='assess'){
+          const id=effect.candidate.triggers[0]?.id
+          if(id&&this.domain.engine.candidate(id)?.evalId===assignment)this.domain.engine.decide(id,{kind:'unavailable',evalId:assignment,reason:'Main service unavailable. Inspect host status and reassess this Trigger.'})
+        }
+      }
       this.sleeping.set(owner,Date.now()+60000)
       return 'defer'
     }
@@ -453,6 +468,12 @@ export class Host {
     await old.session.close()
     await old.environment?.close()
   }
+  private async observe(owner:string,threadId:string,history:{id?:unknown;turns?:unknown[]}){
+    return observeDispatch(this.domain,owner,history,{
+      started:(turnId,assignmentId)=>this.event(owner,{type:'started',threadId,turnId,assignmentId}),
+      ended:e=>this.event(owner,e),
+    })
+  }
   private async recover(owner:string){
     if(this.reconciling.has(owner)||this.sleeping.get(owner)!>Date.now())return
     this.reconciling.add(owner)
@@ -462,6 +483,17 @@ export class Host {
         const l=await this.session(owner),history=await l.session.readThread(thread,true)
         if(!Array.isArray(history.turns))throw Error('Missing Codex turn history')
         return {...history,turns:history.turns}
+      }
+      if(this.disconnected.has(owner)){
+        const thread=this.binding(owner)?.thread
+        if(!thread)throw Error('Disconnected session has no verified thread')
+        const history=await read(thread)
+        const result=await this.observe(owner,thread,history)
+        if(result==='observing')this.observing.set(owner,Date.now()+1000)
+        this.disconnected.delete(owner)
+        this.db.prepare('DELETE FROM host_recovery WHERE owner=?').run(owner)
+        this.clear(owner)
+        return
       }
       await recoverOwner(this.domain,owner,read,async(turn,assignment)=>{
         const l=await this.session(owner)
@@ -481,6 +513,21 @@ export class Host {
       await this.recover(String(r.owner))
     }
     if(this.stop)return
+    for(const [owner,due] of this.observing){
+      const live=this.live.get(owner),thread=this.binding(owner)?.thread
+      if(!live||!thread||!this.waiting(owner)){this.observing.delete(owner);continue}
+      if(Date.now()<due)continue
+      this.observing.set(owner,Date.now()+2000)
+      try{
+        const history=await live.session.readThread(thread,true)
+        const result=await this.observe(owner,thread,{...history,turns:history.turns as unknown[]})
+        if(result!=='observing'){
+          this.observing.delete(owner)
+          // Drop the completed transport binding. Any running tests still belong to the retained container.
+          this.live.delete(owner);this.disconnected.set(owner,live);await live.session.close()
+        }
+      }catch(e){this.fault(owner,e)}
+    }
     this.supervision.flushFeedback();this.supervision.reconcile()
     for(const id of this.supervision.overdueTests())this.tests.get(id)?.abort.abort('timeout')
     this.domain.engine.evaluateDue()
@@ -532,7 +579,7 @@ export class Host {
     await this.working
     await Promise.allSettled([...this.live.keys()].map(owner=>this.interrupt(owner)))
     await Promise.allSettled([...this.live.keys()].map(owner=>this.drop(owner)))
-    await Promise.allSettled(this.cleanup.values())
+    await Promise.allSettled([...this.disconnected.values()].map(async l=>{await l.session.close();await l.environment?.close()}))
     this.domain.close()
   }
 }

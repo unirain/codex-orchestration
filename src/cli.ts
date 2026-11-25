@@ -13,7 +13,7 @@ async function main(args:string[]){
   let configFile=process.env.ORCH_CONFIG||join(homedir(),'.config','codex-orchestration','binding.json')
   if(args[0]==='--config'){if(!args[1])throw Error('Missing config path');configFile=resolve(args[1]);args=args.slice(2)}
   const [action,...words]=args
-  const usage='orch [--config PATH] chat | say MESSAGE | status | trace TRIGGER | show TICKET | pause TICKET | resume TICKET | clear-excerpts TICKET | track-pr TICKET N | role-model ROLE MODEL | grant | revoke | stop'
+  const usage='orch [--config PATH] chat | say MESSAGE | status | trace TRIGGER | reassess TRIGGER | show TICKET | pause TICKET | resume TICKET | clear-excerpts TICKET | track-pr TICKET N | role-model ROLE MODEL | grant | revoke | stop'
   if(action==='--help'){console.log(usage);return}
   const config=loadConfig(configFile),dir=instanceDir(config)
   privateDir(dir)
@@ -70,7 +70,7 @@ async function main(args:string[]){
       else if(line.trim())await command('say',{id:randomUUID(),text:line})
     }}finally{clearInterval(listen);input.close()}
   }else if(action==='say')await command(action,{id:randomUUID(),text:words.join(' ')})
-  else if(action==='trace'&&words.length===1)await command(action,{trigger:words[0]})
+  else if(['trace','reassess'].includes(action)&&words.length===1)await command(action,{trigger:words[0]})
   else if(action==='track-pr'&&words.length===2)await command(action,{ticket:words[0],pr:Number(words[1])})
   else if(action==='role-model'&&words.length===2)await command(action,{role:words[0],model:words[1]==='default'?'':words[1]})
   else if(['status','grant','revoke','stop'].includes(action))await command(action,{})
